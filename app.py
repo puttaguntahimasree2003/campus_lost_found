@@ -4,7 +4,7 @@ import streamlit as st
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-FOUND_FILE = "found_items.csv"
+FOUND_FILE = "items.csv"
 
 # ---------------- DATA FUNCTIONS ----------------
 
@@ -112,3 +112,4 @@ elif mode == "🔍 Search Lost Item":
                     st.write(f"**Date:** {row['date']}")
 
                     st.write(f"**Contact:** {row['contact']}")
+
