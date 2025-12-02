@@ -53,6 +53,7 @@ Contact:
 Item descriptions are converted into TF-IDF vectors
 Similarity between lost & found items is computed using Cosine Similarity
 Top matches are displayed with a percentage score
+User can choose how many results to view
 
 # Sample Images:
 
