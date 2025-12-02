@@ -83,7 +83,10 @@ if mode == "➕ Add Found Item":
     if df.empty:
         st.info("No found items added yet.")
     else:
-        st.dataframe(df, hide_index=True)
+        df_display = df.copy()
+        df_display["id"] = df_display["id"].astype(str)
+        df_display = df_display[["id", "description", "location", "date", "contact"]]
+        st.dataframe(df_display, hide_index=True, use_container_width=True)
 
 # -------- SEARCH LOST ITEM PAGE --------
 
@@ -112,4 +115,5 @@ elif mode == "🔍 Search Lost Item":
                     st.write(f"**Date:** {row['date']}")
 
                     st.write(f"**Contact:** {row['contact']}")
+
 
