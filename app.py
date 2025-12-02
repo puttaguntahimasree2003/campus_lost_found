@@ -4,7 +4,7 @@ import streamlit as st
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-FOUND_FILE = "items.csv"
+FOUND_FILE = "found_items.csv"
 
 # ---------------- DATA FUNCTIONS ----------------
 
@@ -20,6 +20,7 @@ def save_found_item(description, location, date, contact):
     """Save a new found item to CSV."""
     df = load_found_items()
     new_id = len(df) + 1
+
 
     new_row = {
         "id": new_id,
@@ -83,10 +84,7 @@ if mode == "➕ Add Found Item":
     if df.empty:
         st.info("No found items added yet.")
     else:
-        df_display = df.copy()
-        df_display["id"] = df_display["id"].astype(str)
-        df_display = df_display[["id", "description", "location", "date", "contact"]]
-        st.dataframe(df_display, hide_index=True, use_container_width=True)
+        st.dataframe(df, hide_index=True)
 
 # -------- SEARCH LOST ITEM PAGE --------
 
@@ -109,11 +107,7 @@ elif mode == "🔍 Search Lost Item":
                 for _, row in matches.iterrows():
                     st.markdown("---")
                     st.markdown(f"### 🎯 Match Score: **{round(row['similarity']*100, 1)}%**")
-                    st.write(f"**id:** {row['id']}")
                     st.write(f"**Description:** {row['description']}")
                     st.write(f"**Location:** {row['location']}")
                     st.write(f"**Date:** {row['date']}")
-
                     st.write(f"**Contact:** {row['contact']}")
-
-
