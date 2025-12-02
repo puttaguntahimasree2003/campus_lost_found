@@ -19,7 +19,7 @@ def load_found_items():
 def save_found_item(description, location, date, contact):
     """Save a new found item to CSV."""
     df = load_found_items()
-    new_id = 1 if df.empty else int(df["id"].max()) + 1
+    new_id = len(df) + 1
 
     new_row = {
         "id": new_id,
@@ -110,4 +110,5 @@ elif mode == "🔍 Search Lost Item":
                     st.write(f"**Description:** {row['description']}")
                     st.write(f"**Location:** {row['location']}")
                     st.write(f"**Date:** {row['date']}")
+
                     st.write(f"**Contact:** {row['contact']}")
