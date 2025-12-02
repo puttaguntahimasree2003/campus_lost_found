@@ -40,7 +40,7 @@ def find_matches(lost_description, top_k=5):
     if df.empty:
         return None
 
-    descriptions = [lost_description] + df["description"].fillna("").tolist()
+    descriptions = [lost_description] + df["description"] + df["location"].fillna("").tolist()
 
     vectorizer = TfidfVectorizer(stop_words="english")
     tfidf_matrix = vectorizer.fit_transform(descriptions)
@@ -111,4 +111,5 @@ elif mode == "🔍 Search Lost Item":
                     st.write(f"**Location:** {row['location']}")
                     st.write(f"**Date:** {row['date']}")
                     st.write(f"**Contact:** {row['contact']}")
+
 
