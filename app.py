@@ -449,11 +449,10 @@ st.markdown(
 )
 
 st.title("Campus Lost & Found with AutoMatch")
-st.caption("Hybrid text + image + location + date matching with user feedback.")
 
 page = st.selectbox(
     "Choose action",
-    ["Search Lost Item", "Add Found Item", "Feedback & Logs"],
+    ["Add Found Item", "Search Lost Item", "Feedback & Logs"],
 )
 
 if page == "Add Found Item":
@@ -462,3 +461,4 @@ elif page == "Search Lost Item":
     show_search_page()
 else:
     show_feedback_page()
+
