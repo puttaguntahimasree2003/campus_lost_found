@@ -1,16 +1,5 @@
-# app.py
-# Campus Lost & Found – Persistent Version
-# - items saved in items.csv (never reset)
-# - images stored in /images folder
-# - add / edit / delete items
-# - feedback stored in feedback.csv
-# - text + image AutoMatch using TF-IDF + simple image cosine
-# - Search tab has feedback + optional image display
-# - Feedback tab shows table with: item_id, helpful, comment, time
-
 import os
 from datetime import datetime
-
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -18,9 +7,6 @@ from PIL import Image
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# ----------------------------------------------------
-# BASIC CONFIG
-# ----------------------------------------------------
 st.set_page_config(page_title="Campus Lost & Found", layout="wide")
 
 ITEMS_FILE = "items.csv"
@@ -29,10 +15,6 @@ IMAGE_DIR = "images"
 
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
-
-# ----------------------------------------------------
-# HELPERS TO LOAD & SAVE DATA (PERSISTENT)
-# ----------------------------------------------------
 def load_items():
     """Load items.csv into session_state.items_df and ensure required columns exist."""
     if "items_df" in st.session_state:
@@ -132,32 +114,27 @@ def compute_image_similarity(query_vec: np.ndarray, image_path: str) -> float:
         return 0.0
 
 
-# ----------------------------------------------------
 # INITIAL LOAD
-# ----------------------------------------------------
+
 load_items()
 load_feedback()
 
 items_df = st.session_state.items_df
 feedback_df = st.session_state.feedback_df
 
-# ----------------------------------------------------
 # PAGE TITLE
-# ----------------------------------------------------
+
 st.title("🏫 Campus Lost & Found – AutoMatch + Feedback (Persistent)")
 
-
-# ----------------------------------------------------
 # TABS
-# ----------------------------------------------------
+
 tab_add, tab_manage, tab_search, tab_feedback = st.tabs(
     ["➕ Add Item", "📝 View / Edit / Delete", "🔍 Search & Feedback", "📋 All Feedback"]
 )
 
 
-# ----------------------------------------------------
 # TAB 1: ADD ITEM
-# ----------------------------------------------------
+
 with tab_add:
     st.subheader("Add a new lost / found item")
 
@@ -217,10 +194,7 @@ with tab_add:
 
             st.success(f"Item #{new_id} added and saved 🎉")
 
-
-# ----------------------------------------------------
 # TAB 2: VIEW / EDIT / DELETE
-# ----------------------------------------------------
 with tab_manage:
     st.subheader("All items (persistent)")
 
@@ -312,10 +286,8 @@ with tab_manage:
                 st.success(f"Item #{selected_id} deleted ❌")
                 st.rerun()
 
-
-# ----------------------------------------------------
 # TAB 3: SEARCH + FEEDBACK (TEXT + IMAGE SIMILARITY)
-# ----------------------------------------------------
+
 with tab_search:
     st.subheader("Search items and give feedback")
 
@@ -482,9 +454,8 @@ with tab_search:
                         st.markdown("---")
 
 
-# ----------------------------------------------------
 # TAB 4: FEEDBACK TABLE ONLY
-# ----------------------------------------------------
+
 with tab_feedback:
     st.subheader("All feedback given")
 
@@ -501,3 +472,4 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
