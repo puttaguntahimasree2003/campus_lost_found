@@ -81,6 +81,7 @@ def load_items() -> pd.DataFrame:
 
     for c in ["description", "location", "date", "contact"]:
         df[c] = df[c].fillna("").astype(str)
+    df["contact"]= df["contact"].str.replace(r"\.0$", "", regex=True)
 
     return df
 
@@ -391,4 +392,5 @@ elif page == "Search Lost Item":
     search_lost_item_page()
 else:
     feedback_page()
+
 
