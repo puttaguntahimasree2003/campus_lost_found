@@ -8,34 +8,61 @@ from PIL import Image
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# -------------------------------------------------------------
-# File paths and columns
-# -------------------------------------------------------------
-DATA_FILE = "items.csv"
+# ----------------------------------------------------
+# BASIC PAGE CONFIG + SIMPLE BORDER STYLE
+# ----------------------------------------------------
+st.set_page_config(page_title="Campus Lost & Found - AutoMatch", layout="wide")
+
+st.markdown(
+    """
+    <style>
+    .main {
+        background-color: #f1f5f9;
+    }
+    .block-container {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        margin-top: 0.75rem;
+        padding: 1.3rem 1.5rem 1.5rem 1.5rem;
+        background-color: #ffffff;
+    }
+    .stButton>button {
+        border-radius: 999px;
+        padding: 0.35rem 1.2rem;
+        font-weight: 600;
+        border: none;
+        background: linear-gradient(90deg, #2563eb, #9333ea);
+        color: white;
+    }
+    .stButton>button:hover {
+        background: linear-gradient(90deg, #1d4ed8, #7e22ce);
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ----------------------------------------------------
+# CONSTANTS & FILES
+# ----------------------------------------------------
+ITEMS_FILE = "items.csv"
 FEEDBACK_FILE = "feedback.csv"
 
-ITEM_COLUMNS = [
-    "id",
-    "description",
-    "location",
-    "date",
-    "contact",
-    "img_r",
-    "img_g",
-    "img_b",
-]
+ITEM_COLS = ["id", "description", "location", "date", "contact", "img_r", "img_g", "img_b"]
 
-# -------------------------------------------------------------
-# Data helpers
-# -------------------------------------------------------------
+
+# ----------------------------------------------------
+# DATA HELPERS
+# ----------------------------------------------------
 def load_items() -> pd.DataFrame:
-    if os.path.exists(DATA_FILE):
-        df = pd.read_csv(DATA_FILE)
+    """Load items CSV and guarantee required columns exist."""
+    if os.path.exists(ITEMS_FILE):
+        df = pd.read_csv(ITEMS_FILE)
     else:
-        df = pd.DataFrame(columns=ITEM_COLUMNS)
+        df = pd.DataFrame(columns=ITEM_COLS)
 
-    # Ensure all columns exist
-    for col in ITEM_COLUMNS:
+    # create missing columns
+    for col in ITEM_COLS:
         if col not in df.columns:
             if col in ["img_r", "img_g", "img_b"]:
                 df[col] = 0.0
@@ -44,9 +71,9 @@ def load_items() -> pd.DataFrame:
             else:
                 df[col] = ""
 
-    df = df[ITEM_COLUMNS]
+    df = df[ITEM_COLS]
 
-    # Clean types
+    # types
     df["id"] = pd.to_numeric(df["id"], errors="coerce").fillna(0).astype(int)
     if (df["id"] == 0).any():
         df["id"] = range(1, len(df) + 1)
@@ -61,18 +88,16 @@ def load_items() -> pd.DataFrame:
 
 
 def save_items(df: pd.DataFrame) -> None:
-    df.to_csv(DATA_FILE, index=False)
+    df.to_csv(ITEMS_FILE, index=False)
 
 
 def load_feedback() -> pd.DataFrame:
     if os.path.exists(FEEDBACK_FILE):
         return pd.read_csv(FEEDBACK_FILE)
-    return pd.DataFrame(
-        columns=["lost_query", "matched_id", "score", "feedback", "timestamp"]
-    )
+    return pd.DataFrame(columns=["lost_query", "matched_id", "score", "feedback", "timestamp"])
 
 
-def save_feedback(lost_query: str, matched_id: int, score: float, good: bool) -> None:
+def append_feedback(lost_query: str, matched_id: int, score: float, good: bool) -> None:
     row = {
         "lost_query": lost_query,
         "matched_id": int(matched_id),
@@ -90,11 +115,11 @@ def save_feedback(lost_query: str, matched_id: int, score: float, good: bool) ->
     df.to_csv(FEEDBACK_FILE, index=False)
 
 
-# -------------------------------------------------------------
-# Image / feature helpers
-# -------------------------------------------------------------
-def extract_rgb(uploaded_file) -> tuple:
-    """Return mean RGB of uploaded image file."""
+# ----------------------------------------------------
+# IMAGE & SIMILARITY HELPERS
+# ----------------------------------------------------
+def extract_rgb(uploaded_file):
+    """Return mean RGB of uploaded image, or (0,0,0) if none or error."""
     if uploaded_file is None:
         return 0.0, 0.0, 0.0
 
@@ -110,10 +135,7 @@ def extract_rgb(uploaded_file) -> tuple:
         return 0.0, 0.0, 0.0
 
 
-# -------------------------------------------------------------
-# Matching logic
-# -------------------------------------------------------------
-def text_sim(query: str, df: pd.DataFrame) -> np.ndarray:
+def text_similarity_scores(query: str, df: pd.DataFrame) -> np.ndarray:
     descriptions = df["description"].fillna("").astype(str).tolist()
     all_texts = descriptions + [query]
     vectorizer = TfidfVectorizer(stop_words="english")
@@ -123,7 +145,7 @@ def text_sim(query: str, df: pd.DataFrame) -> np.ndarray:
     return sims
 
 
-def img_sim(q_rgb: tuple, df: pd.DataFrame) -> np.ndarray:
+def image_similarity_scores(q_rgb, df: pd.DataFrame) -> np.ndarray:
     qr, qg, qb = q_rgb
     if qr == qg == qb == 0.0:
         return np.zeros(len(df))
@@ -135,12 +157,11 @@ def img_sim(q_rgb: tuple, df: pd.DataFrame) -> np.ndarray:
             scores.append(0.0)
         else:
             dist = np.sqrt((qr - r) ** 2 + (qg - g) ** 2 + (qb - b) ** 2)
-            # max RGB distance ~ 441.7
-            scores.append(max(0.0, 1.0 - dist / 441.7))
+            scores.append(1.0 / (1.0 + dist))
     return np.array(scores)
 
 
-def loc_score(found_loc: str, lost_loc: str) -> float:
+def location_score(found_loc: str, lost_loc: str) -> float:
     f = str(found_loc or "").strip().lower()
     l = str(lost_loc or "").strip().lower()
     if not f or not l:
@@ -170,18 +191,16 @@ def date_score(found_date: str, lost_date: str) -> float:
         return 0.0
 
 
-def rank_matches(
-    df: pd.DataFrame, q_text: str, q_loc: str, q_date: str, q_rgb: tuple
-) -> pd.DataFrame:
+def rank_matches(df, q_text, q_loc, q_date_str, q_rgb):
     if df.empty:
         return df
 
-    t_sim = text_sim(q_text, df)
-    i_sim = img_sim(q_rgb, df)
-    l_scores = np.array([loc_score(row["location"], q_loc) for _, row in df.iterrows()])
-    d_scores = np.array([date_score(row["date"], q_date) for _, row in df.iterrows()])
+    t_sim = text_similarity_scores(q_text, df)
+    i_sim = image_similarity_scores(q_rgb, df)
+    l_scores = np.array([location_score(row["location"], q_loc) for _, row in df.iterrows()])
+    d_scores = np.array([date_score(row["date"], q_date_str) for _, row in df.iterrows()])
 
-    # weights
+    # weights (text, image, location, date)
     alpha, beta, gamma, delta = 0.6, 0.15, 0.15, 0.1
     hybrid = alpha * t_sim + beta * i_sim + gamma * l_scores + delta * d_scores
 
@@ -195,50 +214,38 @@ def rank_matches(
     return df.sort_values("hybrid_score", ascending=False)
 
 
-# -------------------------------------------------------------
-# Page layouts
-# -------------------------------------------------------------
-def show_add_item_page() -> None:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
+# ----------------------------------------------------
+# PAGE: ADD FOUND ITEM
+# ----------------------------------------------------
+def add_found_item_page():
     st.subheader("➕ Add Found Item")
 
     df = load_items()
 
-    # Form so there is no "Press Enter to apply"
-    with st.form("add_form"):
-        col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
+    with col1:
+        desc = st.text_input("Found Item Description")
+        loc = st.text_input("Location Found")
+    with col2:
+        date = st.date_input("Date Found")
+        contact = st.text_input("Contact (Phone/Email)")
 
-        with col1:
-            desc = st.text_input("Found Item Description")
-            loc = st.text_input("Location Found")
+    img_file = st.file_uploader(
+        "Upload Image of Found Item (optional)",
+        type=["jpg", "jpeg", "png"],
+        key="add_image",
+    )
+    if img_file is not None:
+        st.markdown("*Preview*")
+        st.image(img_file, caption="Found item image", use_column_width=True)
 
-        with col2:
-            date = st.date_input("Date Found")
-            contact = st.text_input("Contact (Phone/Email)")
-
-        img_file = st.file_uploader(
-            "Upload Image of Found Item (optional)",
-            type=["jpg", "jpeg", "png"],
-            key="add_image",
-        )
-
-        # Image preview
-        if img_file is not None:
-            st.markdown("##### Preview")
-            st.image(img_file, caption="Found item image", use_column_width=True)
-
-        submitted = st.form_submit_button("Save Found Item")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    if submitted:
+    if st.button("Save Found Item"):
         if not desc.strip():
             st.error("Description cannot be empty.")
         else:
             df = load_items()
             new_id = 1 if df.empty else int(df["id"].max()) + 1
             r, g, b = extract_rgb(img_file)
-
             new_row = {
                 "id": new_id,
                 "description": desc,
@@ -249,34 +256,31 @@ def show_add_item_page() -> None:
                 "img_g": g,
                 "img_b": b,
             }
-
             df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
             save_items(df)
-            st.success("Found item saved successfully! ✅")
+            st.success("Found item saved successfully ✅")
 
     st.markdown("### Current Stored Items")
     df = load_items()
-
     if df.empty:
         st.info("No items stored yet.")
     else:
         st.dataframe(
-            df[["id", "description", "location", "date", "contact"]].reset_index(
-                drop=True
-            ),
+            df[["id", "description", "location", "date", "contact"]].reset_index(drop=True),
             hide_index=True,
             use_container_width=True,
         )
 
 
-def show_search_page() -> None:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
+# ----------------------------------------------------
+# PAGE: SEARCH LOST ITEM
+# ----------------------------------------------------
+def search_lost_item_page():
     st.subheader("🔍 Search Lost Item")
 
     df = load_items()
     if df.empty:
         st.warning("No items stored yet. Please add found items first.")
-        st.markdown("</div>", unsafe_allow_html=True)
         return
 
     q_text = st.text_area(
@@ -298,18 +302,13 @@ def show_search_page() -> None:
         type=["jpg", "jpeg", "png"],
         key="lost_image",
     )
-
-    # Image preview
     if lost_img is not None:
-        st.markdown("##### Preview")
+        st.markdown("*Preview*")
         st.image(lost_img, caption="Lost item image", use_column_width=True)
 
     top_k = st.slider("Number of matches to display", 1, 10, 5)
 
-    find_btn = st.button("Find Matches")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    if find_btn:
+    if st.button("Find Matches"):
         if not q_text.strip():
             st.error("Please enter a description of the lost item.")
             return
@@ -325,48 +324,43 @@ def show_search_page() -> None:
         else:
             st.markdown("### Best Matches")
             for i, (_, row) in enumerate(ranked.iterrows(), start=1):
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-
+                # NO BOX – just plain text, but score line is bold
                 st.markdown(
                     f"*Match {i}: Overall Score {row['hybrid_score'] * 100:.1f}%*"
                 )
-                st.write(f"*Description:* {row['description']}")
-                st.write(f"*Location:* {row['location']}")
-                st.write(f"*Date Found:* {row['date']}")
-                st.write(f"*Contact:* {row['contact']}")
-
-                st.caption(
-                    f"Text: {row['text_sim'] * 100:.1f}%  |  "
-                    f"Image: {row['img_sim'] * 100:.1f}%  |  "
-                    f"Location: {row['loc_score'] * 100:.0f}%  |  "
+                st.write(f"Description: {row['description']}")
+                st.write(f"Location: {row['location']}")
+                st.write(f"Date Found: {row['date']}")
+                st.write(f"Contact: {row['contact']}")
+                st.write(
+                    f"Text: {row['text_sim'] * 100:.1f}% | "
+                    f"Image: {row['img_sim'] * 100:.1f}% | "
+                    f"Location: {row['loc_score'] * 100:.0f}% | "
                     f"Date: {row['date_score'] * 100:.0f}%"
                 )
 
                 c1, c2 = st.columns(2)
                 with c1:
-                    if st.button(
-                        f"Helpful (ID {row['id']})", key=f"good_{row['id']}"
-                    ):
-                        save_feedback(q_text, row["id"], row["hybrid_score"], True)
+                    if st.button(f"Helpful (ID {row['id']})", key=f"good_{row['id']}"):
+                        append_feedback(q_text, row["id"], row["hybrid_score"], True)
                         st.success("Thanks, feedback recorded.")
                 with c2:
-                    if st.button(
-                        f"Not useful (ID {row['id']})", key=f"bad_{row['id']}"
-                    ):
-                        save_feedback(q_text, row["id"], row["hybrid_score"], False)
+                    if st.button(f"Not useful (ID {row['id']})", key=f"bad_{row['id']}"):
+                        append_feedback(q_text, row["id"], row["hybrid_score"], False)
                         st.warning("Marked as not useful.")
 
-                st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown("---")  # thin separator, not a big box
 
 
-def show_feedback_page() -> None:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.subheader("📝 Feedback and Logs")
+# ----------------------------------------------------
+# PAGE: FEEDBACK LOGS
+# ----------------------------------------------------
+def feedback_page():
+    st.subheader("📝 Feedback & Logs")
 
     fb = load_feedback()
     if fb.empty:
         st.info("No feedback given yet.")
-        st.markdown("</div>", unsafe_allow_html=True)
         return
 
     total = len(fb)
@@ -386,79 +380,21 @@ def show_feedback_page() -> None:
         use_container_width=True,
     )
 
-    st.markdown("</div>", unsafe_allow_html=True)
 
+# ----------------------------------------------------
+# MAIN APP
+# ----------------------------------------------------
+st.title("🏫 Campus Lost & Found with AutoMatch")
 
-# -------------------------------------------------------------
-# Main app
-# -------------------------------------------------------------
-st.set_page_config(page_title="Campus Lost and Found - AutoMatch", layout="wide")
-
-st.markdown(
-    """
-    <style>
-    .main {
-        background: linear-gradient(135deg, #f5f7ff, #e0f2fe);
-    }
-    .block-container {
-        padding-top: 1.5rem;
-        padding-bottom: 1.5rem;
-    }
-    h1, h2, h3 {
-        color: #1e293b;
-        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-    .card {
-        background-color: #ffffff;
-        padding: 1.2rem 1.5rem;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-        border: 1px solid #e2e8f0;
-        margin-bottom: 1.0rem;
-    }
-    .stTextInput>div>div>input,
-    .stTextArea>div>textarea,
-    .stSelectbox>div>div>select {
-        border-radius: 8px;
-        border: 1px solid #cbd5f5;
-    }
-    .stFileUploader>div>div {
-        border-radius: 10px;
-    }
-    .stSlider>div>div>div[role="slider"] {
-        background-color: #2563eb;
-    }
-    .stDataFrame {
-        border-radius: 10px;
-        overflow: hidden;
-    }
-    .stButton>button {
-        border-radius: 999px;
-        padding: 0.4rem 1.2rem;
-        font-weight: 600;
-        border: none;
-        background: linear-gradient(90deg, #2563eb, #9333ea);
-        color: white;
-    }
-    .stButton>button:hover {
-        background: linear-gradient(90deg, #1d4ed8, #7e22ce);
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.title("Campus Lost & Found with AutoMatch")
-
+# IMPORTANT: order Add → Search → Feedback
 page = st.selectbox(
     "Choose action",
     ["Add Found Item", "Search Lost Item", "Feedback & Logs"],
 )
 
 if page == "Add Found Item":
-    show_add_item_page()
+    add_found_item_page()
 elif page == "Search Lost Item":
-    show_search_page()
+    search_lost_item_page()
 else:
-    show_feedback_page()
-
+    feedback_page()
