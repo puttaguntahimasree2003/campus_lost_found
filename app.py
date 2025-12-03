@@ -346,6 +346,30 @@ elif menu == "Search Lost Item":
                                 st.warning("Marked as not useful.")
 
 # ---------- FEEDBACK PAGE ----------
+elif menu == "Feedback & Logs":
+    st.subheader("Feedback & Logs")
+    fb_df = load_feedback()
+
+    if fb_df.empty:
+        st.info("No feedback given yet.")
+    else:
+        total = len(fb_df)
+        good = (fb_df["feedback"] == "good").sum()
+        bad = (fb_df["feedback"] == "bad").sum()
+
+        st.write(f"Total feedback entries: {total}")
+        st.write(f"Marked helpful: {good}")
+        st.write(f"Marked not useful: {bad}")
+        if total > 0:
+            st.write(f"Overall positive rate: {(good / total) * 100:.1f}%")
+
+        st.markdown("### Raw Feedback")
+        st.dataframe(
+            fb_df.reset_index(drop=True),
+            hide_index=True,
+            use_container_width=True,
+        )
+
 
 
 
