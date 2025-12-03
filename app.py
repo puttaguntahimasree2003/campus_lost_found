@@ -117,7 +117,7 @@ def save_feedback(item_id, score, good):
 
 
 # ---------- UI ----------
-st.title("Campus Lost & Found – AutoMatch (Hybrid Matching)")
+st.title("🏛️Campus Lost & Found with AutoMatch)")
 
 choice = st.sidebar.radio("Menu", ["➕ Add Found Item", "🔍 Search Lost Item", "📊 Feedback"])
 
@@ -149,7 +149,7 @@ if choice == "➕ Add Found Item":
 
     st.write("### Stored Items")
     df = load_items()
-    st.dataframe(df[["id","description","location","date","contact"]])
+    st.dataframe(df[["id","description","location","date","contact"]], hide_index=True)
 
 
 # SEARCH LOST ITEM
@@ -185,6 +185,7 @@ elif choice == "🔍 Search Lost Item":
 else:
     if os.path.exists(FEEDBACK_FILE):
         fb = pd.read_csv(FEEDBACK_FILE)
-        st.dataframe(fb)
+        st.dataframe(fb,hide_index=True)
     else:
         st.info("No feedback yet.")
+
