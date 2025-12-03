@@ -160,7 +160,7 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
+st.set_page_config(page_title="Campus Lost & Found", layout="wide")
 st.title("🏛️Campus Lost & Found with AutoMatch")
 
 col1, col2, col3 = st.columns(3)
@@ -176,6 +176,18 @@ with col2:
 with col3:
     if st.button("📝 Feedback"):
         st.session_state["page"] = "feedback"
+
+page = st.session_state["page"]
+
+if page == "add":
+    show_add_item_page()
+
+elif page == "search":
+    show_search_page()
+
+elif page == "feedback":
+    show_feedback_page()
+        
 
 # Default page
 if "page" not in st.session_state:
@@ -311,6 +323,7 @@ else:
             st.write(f"Overall positive rate: {(good / total) * 100:.1f}%")
         st.markdown("### Raw Feedback")
         st.dataframe(fb.reset_index(drop=True), hide_index=True, use_container_width=True)
+
 
 
 
