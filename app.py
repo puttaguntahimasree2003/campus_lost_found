@@ -82,4 +82,6 @@ def save_found_item(description: str, location: str, date, contact: str,
     new_row = {
         "id": new_id,
         "description": description,
-        "location": location
+        "location": location,
+    }
+
