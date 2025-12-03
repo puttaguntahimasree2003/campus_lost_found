@@ -129,7 +129,7 @@ if choice == "➕ Add Found Item":
     date = st.date_input("Date Found")
     contact = st.text_input("Contact")
     img = st.file_uploader("Upload Image (optional)", type=["jpg","jpeg","png"])
-    if uploaded_images is not None:
+    if uploaded_images:
         img_features = extract_image_features(uploaded_image)
     else:
         img_features = None
@@ -192,6 +192,7 @@ else:
         st.dataframe(fb,hide_index=True)
     else:
         st.info("No feedback yet.")
+
 
 
 
