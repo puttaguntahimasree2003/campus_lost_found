@@ -1,209 +1,149 @@
-import os
-import numpy as np
-import pandas as pd
 import streamlit as st
-from datetime import datetime
-from PIL import Image
+import pandas as pd
+import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from PIL import Image
+import io
 
-# ---------- WordNet (optional) ----------
-try:
-    import nltk
-    from nltk.corpus import wordnet as wn
-    nltk.download("wordnet", quiet=True)
-    WORDNET = True
-except:
-    WORDNET = False
+# ---------------------------
+# Load & Save CSV
+# ---------------------------
+CSV_PATH = "items.csv"
 
-DATA_FILE = "items.csv"
-FEEDBACK_FILE = "feedback.csv"
-
-COLUMNS = ["id", "description", "location", "date", "contact", "img_r", "img_g", "img_b"]
-
-# ---------- Utilities ----------
 def load_items():
-    if os.path.exists(DATA_FILE):
-        df = pd.read_csv(DATA_FILE)
-    else:
-        df = pd.DataFrame(columns=COLUMNS)
-
-    for c in COLUMNS:
-        if c not in df.columns:
-            df[c] = 0 if c.startswith("img_") else ""
-
-    df = df[COLUMNS]
-    df["id"] = df["id"].fillna(0).astype(int)
-    return df
-
+    try:
+        return pd.read_csv(CSV_PATH)
+    except:
+        return pd.DataFrame(columns=["id","description","location","date","contact","r","g","b"])
 
 def save_items(df):
-    df.to_csv(DATA_FILE, index=False)
+    df.to_csv(CSV_PATH, index=False)
 
+# ---------------------------
+# Extract image features
+# ---------------------------
+def extract_image_features(uploaded_img):
+    if uploaded_img is None:
+        return None, None, None
+    img = Image.open(uploaded_img).convert("RGB")
+    arr = np.array(img)
+    return arr[:,:,0].mean(), arr[:,:,1].mean(), arr[:,:,2].mean()  # R, G, B
 
-def get_image_features(file):
-    if file is None:
-        return [0, 0, 0]
-    try:
-        img = Image.open(file).convert("RGB").resize((128, 128))
-        arr = np.array(img)
-        return [arr[:, :, 0].mean(), arr[:, :, 1].mean(), arr[:, :, 2].mean()]
-    except:
-        return [0, 0, 0]
+# ---------------------------
+# Text similarity
+# ---------------------------
+def compute_text_similarity(query, df):
+    texts = df["description"].fillna("").tolist()
+    vectorizer = TfidfVectorizer()
+    tfidf = vectorizer.fit_transform(texts + [query])
+    cosine = cosine_similarity(tfidf[-1], tfidf[:-1])[0]
+    return cosine
 
+# ---------------------------
+# Image similarity
+# ---------------------------
+def compute_image_similarity(query_rgb, df):
+    if query_rgb is None:
+        return np.zeros(len(df))
+    qr, qg, qb = query_rgb
+    sims = []
+    for _, row in df.iterrows():
+        if pd.isna(row["r"]):
+            sims.append(0)  
+        else:
+            fr, fg, fb = row["r"], row["g"], row["b"]
+            dist = np.sqrt((qr-fr)*2 + (qg-fg)2 + (qb-fb)*2)
+            sim = max(0, 1 - dist/441.67)  
+            sims.append(sim)
+    return np.array(sims)
 
-def expand_text(text):
-    if not WORDNET:
-        return text
-    words = text.split()
-    extra = []
-    for w in words:
-        syns = wn.synsets(w)
-        for s in syns[:1]:
-            extra.append(s.lemmas()[0].name().replace("_", " "))
-    return text + " " + " ".join(extra)
+# ---------------------------
+# UI STARTS HERE
+# ---------------------------
+st.set_page_config(page_title="Campus Lost & Found with AutoMatch", layout="wide")
 
+st.title("🎒 Campus Lost & Found – AutoMatch+")
 
-def hybrid_match(q_text, q_img, q_loc, q_date):
-    df = load_items()
-    if df.empty:
-        return df
+menu = st.sidebar.radio("Choose an action:", ["➕ Add Found Item", "🔍 Search Lost Item"])
 
-    # text similarity
-    query_expanded = expand_text(q_text)
-    texts = df["description"].astype(str).tolist() + [query_expanded]
+df = load_items()
 
-    tfidf = TfidfVectorizer()
-    mat = tfidf.fit_transform(texts)
-    text_scores = cosine_similarity(mat[-1], mat[:-1])[0]
-
-    # image similarity
-    img_feats = df[["img_r", "img_g", "img_b"]].values
-    q_vec = np.array(q_img).reshape(1, -1)
-    img_scores = cosine_similarity(q_vec, img_feats)[0]
-
-    # location match (1 or 0)
-    loc_scores = (df["location"].str.lower() == q_loc.lower()).astype(float)
-
-    # date closeness
-    ds = []
-    for d in df["date"]:
-        try:
-            diff = abs((pd.to_datetime(q_date) - pd.to_datetime(d)).days)
-            ds.append(max(0, 1 - diff/7))
-        except:
-            ds.append(0)
-    date_scores = np.array(ds)
-
-    # hybrid score
-    final = 0.6*text_scores + 0.15*img_scores + 0.15*loc_scores + 0.1*date_scores
-
-    df["text"] = text_scores
-    df["img"] = img_scores
-    df["loc"] = loc_scores
-    df["date_s"] = date_scores
-    df["score"] = final
-
-    return df.sort_values("score", ascending=False)
-
-
-def save_feedback(item_id, score, good):
-    fb = pd.DataFrame([[item_id, score, "good" if good else "bad"]],
-                      columns=["item_id", "score", "feedback"])
-    if os.path.exists(FEEDBACK_FILE):
-        old = pd.read_csv(FEEDBACK_FILE)
-        fb = pd.concat([old, fb], ignore_index=True)
-    fb.to_csv(FEEDBACK_FILE, index=False)
-
-
-# ---------- UI ----------
-st.title("🏛️Campus Lost & Found with AutoMatch")
-
-choice = st.sidebar.radio("Menu", ["➕ Add Found Item", "🔍 Search Lost Item", "📊 Feedback"])
-
-
+# --------------------------------------------------------
 # ADD FOUND ITEM
-if choice == "➕ Add Found Item":
-    desc = st.text_area("Description")
+# --------------------------------------------------------
+if menu == "➕ Add Found Item":
+
+    st.header("Add Found Item")
+
+    desc = st.text_input("Found Item Description")
     loc = st.text_input("Location Found")
     date = st.date_input("Date Found")
-    contact = st.text_input("Contact")
-    img = st.file_uploader("Upload Image (optional)", type=["jpg","jpeg","png"])
-    # Upload image (optional)
-uploaded_image = st.file_uploader("Upload Image (optional)", type=["jpg", "jpeg", "png"])
+    contact = st.text_input("Contact Number")
 
-# Process image only if uploaded
-if uploaded_image is not None:
-    img_features = extract_image_features(uploaded_image)
-else:
-    img_features = None
+    uploaded_img = st.file_uploader("Upload Image (optional)", type=["jpg","jpeg","png"], key="add_img")
 
-if st.button("Save"):
-    df = load_items()
-    new_id = 1 if df.empty else df["id"].max() + 1
-    if uploaded_image is not None:
-        r, g, b = get_image_features(uploaded_image)
+    # extract rgb
+    if uploaded_img:
+        r, g, b = extract_image_features(uploaded_img)
     else:
         r, g, b = None, None, None
 
-    new = {
-        "id": new_id,
-        "description": desc,
-        "location": loc,
-        "date": str(date),
-        "contact": contact,
-        "r": r,
-        "g": g,
-        "b": b
-    }
+    if st.button("Save Found Item"):
+        new_id = 1 if df.empty else df["id"].max() + 1
 
-    df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
-    df.to_csv("items.csv", index=False)
-    st.success("Item added successfully!")
-    st.write("### Stored Items")
-    df = load_items()
-    st.dataframe(df[["id","description","location","date","contact"]], hide_index=True)
+        new_row = {
+            "id": new_id,
+            "description": desc,
+            "location": loc,
+            "date": str(date),
+            "contact": contact,
+            "r": r,
+            "g": g,
+            "b": b
+        }
 
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        save_items(df)
+        st.success("Item added successfully! 🎉")
 
+# --------------------------------------------------------
 # SEARCH LOST ITEM
-elif choice == "🔍 Search Lost Item":
-    q_text = st.text_area("Describe lost item")
-    q_loc = st.text_input("Lost Location")
-    q_date = st.date_input("Lost Date")
-    q_img = st.file_uploader("Upload Image (optional)", type=["jpg","jpeg","png"])
-    k = st.slider("Number of matches", 1, 10, 3)
+# --------------------------------------------------------
+elif menu == "🔍 Search Lost Item":
 
-    if st.button("Search"):
-        q_img_feat = get_image_features(q_img)
-        res = hybrid_match(q_text, q_img_feat, q_loc, q_date).head(k)
+    st.header("Search Lost Item")
 
-        for _, r in res.iterrows():
-            st.markdown("### 🎯 Match Score: *{:.2f}%*".format(r["score"]*100))
-            st.write("*Description:*", r["description"])
-            st.write("*Location:*", r["location"])
-            st.write("*Date Found:*", r["date"])
-            st.write("*Contact:*", r["contact"])
-            st.caption(
-                f"Text: {r['text']*100:.1f}% | Image: {r['img']*100:.1f}% | Location: {r['loc']*100:.1f}% | Date: {r['date_s']*100:.1f}%"
-            )
+    query = st.text_input("Describe what you lost")
+    lost_img = st.file_uploader("Upload Lost Item Image (optional)", type=["jpg","jpeg","png"], key="search_img")
 
-            c1,c2 = st.columns(2)
-            if c1.button(f"👍 Helpful {r['id']}"):
-                save_feedback(r["id"], r["score"], True)
-            if c2.button(f"👎 Not useful {r['id']}"):
-                save_feedback(r["id"], r["score"], False)
-
-
-# FEEDBACK
-else:
-    if os.path.exists(FEEDBACK_FILE):
-        fb = pd.read_csv(FEEDBACK_FILE)
-        st.dataframe(fb,hide_index=True)
+    if lost_img:
+        qr, qg, qb = extract_image_features(lost_img)
+        query_rgb = (qr, qg, qb)
     else:
-        st.info("No feedback yet.")
+        query_rgb = None
 
+    top_k = st.slider("Number of matches to show:", 1, 10, 3)
 
+    if st.button("Find Matches"):
 
+        if df.empty:
+            st.warning("No items in database!")
+        else:
+            text_sim = compute_text_similarity(query, df)
+            img_sim = compute_image_similarity(query_rgb, df)
 
+            final_score = (0.7 * text_sim) + (0.3 * img_sim)
 
+            df["score"] = final_score
+            results = df.sort_values("score", ascending=False).head(top_k)
 
+            st.subheader("🔎 Best Matches")
+            for _, row in results.iterrows():
+                st.markdown(f"""
+                *Match Score: {round(row['score']*100,2)}%*  
+                *Description:* {row['description']}  
+                *Location:* {row['location']}  
+                *Date:* {row['date']}  
+                *Contact:* {row['contact']}  
+                """)
