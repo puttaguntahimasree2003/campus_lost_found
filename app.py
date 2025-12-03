@@ -216,7 +216,7 @@ st.title("Campus Lost & Found - AutoMatch")
 st.caption("Hybrid text + image + location + date matching with feedback.")
 
 menu = st.sidebar.radio(
-    
+     "Navigation",
     ["Add Found Item", "Search Lost Item", "Feedback & Logs"],
 )
 
@@ -346,6 +346,7 @@ elif menu == "Search Lost Item":
                                 st.warning("Marked as not useful.")
 
 # ---------- FEEDBACK PAGE ----------
+
 
 
 
