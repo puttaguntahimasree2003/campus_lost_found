@@ -151,6 +151,7 @@ with tab_add:
             description = st.text_input(
                 "Item description*", placeholder="Red water bottle with scratches..."
             )
+            
             location = st.text_input(
                 "Location found*", placeholder="Girls Hostel"
             )
@@ -312,7 +313,6 @@ with tab_search:
         query = st.text_input(
                 "Describe what you're looking for*", placeholder="Red water bottle with scratches..."
             )
-
         )
         location_filter = st.text_input(
             "Location (optional)", placeholder="e.g. Girls Hostel"
@@ -486,6 +486,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
