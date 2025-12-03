@@ -4,7 +4,7 @@
 # - images stored in /images folder
 # - add / edit / delete items
 # - feedback stored in feedback.csv
-# - text AutoMatch using TF-IDF
+# - text + image AutoMatch using TF-IDF + simple image cosine
 # - Search tab has feedback + optional image display
 # - Feedback tab shows table with: item_id, helpful, comment, time
 
@@ -14,6 +14,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import streamlit as st
+from PIL import Image
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -92,7 +93,7 @@ def save_items():
 
 
 def save_feedback():
-    # always save only the 4 feedback columns in correct order
+    """Always save only the 4 feedback columns in correct order."""
     required_cols = ["item_id", "helpful", "comment", "time"]
     df = st.session_state.feedback_df
     for col in required_cols:
@@ -100,6 +101,35 @@ def save_feedback():
             df[col] = ""
     st.session_state.feedback_df = df[required_cols]
     st.session_state.feedback_df.to_csv(FEEDBACK_FILE, index=False)
+
+
+# ---------------- IMAGE FEATURE HELPERS ----------------
+def preprocess_image(img: Image.Image, size=(128, 128)) -> np.ndarray:
+    """Convert image to a small grayscale, flattened & normalized vector."""
+    img = img.convert("L").resize(size)  # grayscale
+    arr = np.array(img, dtype=np.float32).flatten()
+    norm = np.linalg.norm(arr)
+    if norm == 0:
+        return arr
+    return arr / norm
+
+
+def compute_image_similarity(query_vec: np.ndarray, image_path: str) -> float:
+    """Cosine similarity between query image vector and stored image."""
+    if (
+        not isinstance(image_path, str)
+        or image_path.strip() == ""
+        or not os.path.exists(image_path)
+    ):
+        return 0.0
+    try:
+        img = Image.open(image_path)
+        vec = preprocess_image(img)
+        if np.linalg.norm(vec) == 0 or np.linalg.norm(query_vec) == 0:
+            return 0.0
+        return float(np.dot(query_vec, vec))  # cosine because both normalized
+    except Exception:
+        return 0.0
 
 
 # ----------------------------------------------------
@@ -284,7 +314,7 @@ with tab_manage:
 
 
 # ----------------------------------------------------
-# TAB 3: SEARCH + FEEDBACK (WITH IMAGE TOGGLE)
+# TAB 3: SEARCH + FEEDBACK (TEXT + IMAGE SIMILARITY)
 # ----------------------------------------------------
 with tab_search:
     st.subheader("Search items and give feedback")
@@ -313,6 +343,21 @@ with tab_search:
         # checkbox to show/hide images in search results
         show_images = st.checkbox("Show item images", value=False)
 
+        # NEW: upload query image to get image similarity
+        query_image_file = st.file_uploader(
+            "Upload image to match (optional for image similarity)",
+            type=["png", "jpg", "jpeg"],
+            key="search_query_image",
+        )
+
+        query_img_vec = None
+        if query_image_file is not None:
+            try:
+                q_img = Image.open(query_image_file)
+                query_img_vec = preprocess_image(q_img)
+            except Exception:
+                st.warning("Could not read the uploaded image for similarity.")
+
         if query.strip() == "":
             st.info("Type a description to search 😊")
         else:
@@ -327,6 +372,9 @@ with tab_search:
             if df_search.empty:
                 st.warning("No items match this location filter.")
             else:
+                df_search = df_search.reset_index(drop=True)
+
+                # ---------- TEXT SIMILARITY ----------
                 corpus = (
                     df_search["description"].fillna("")
                     + " "
@@ -336,19 +384,36 @@ with tab_search:
                 try:
                     X = vectorizer.fit_transform(corpus)
                     q_vec = vectorizer.transform([query])
-                    sims = cosine_similarity(q_vec, X)[0]
+                    text_sims = cosine_similarity(q_vec, X)[0]
                 except ValueError:
-                    sims = np.zeros(len(df_search))
+                    text_sims = np.zeros(len(df_search))
 
+                # ---------- IMAGE SIMILARITY ----------
+                img_sims = np.zeros(len(df_search), dtype=float)
+                if query_img_vec is not None:
+                    for i_row, img_path in enumerate(df_search["image"].tolist()):
+                        img_sims[i_row] = compute_image_similarity(
+                            query_img_vec, img_path
+                        )
+
+                # ---------- COMBINED SCORE ----------
                 tmp = df_search.copy()
-                tmp["similarity"] = sims
+                tmp["text_sim"] = text_sims
+                tmp["img_sim"] = img_sims
+
+                if query_img_vec is not None:
+                    # average of text + image similarities
+                    tmp["score"] = (tmp["text_sim"] + tmp["img_sim"]) / 2.0
+                else:
+                    tmp["score"] = tmp["text_sim"]
+
                 results = (
-                    tmp.sort_values("similarity", ascending=False)
+                    tmp.sort_values("score", ascending=False)
                     .head(top_k)
                     .reset_index(drop=True)
                 )
 
-                if results["similarity"].max() == 0:
+                if results["score"].max() == 0:
                     st.warning("No strong matches found, but here are some items:")
                 else:
                     st.success("Here are your best matches:")
@@ -362,8 +427,10 @@ with tab_search:
                         st.write(
                             f"**Location:** {row['location']}  |  **Date:** {row['date']}  |  **Contact:** {row['contact']}"
                         )
+                        # show both similarities
                         st.write(
-                            f"Similarity score: {row['similarity'] * 100:.1f}%"
+                            f"Text similarity: {row['text_sim'] * 100:.1f}%"
+                            f"  |  Image similarity: {row['img_sim'] * 100:.1f}%"
                         )
 
                         # show image only if checkbox is ticked
