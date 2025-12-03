@@ -160,7 +160,6 @@ if st.button("Save"):
     df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
     df.to_csv("items.csv", index=False)
     st.success("Item added successfully!")
-        df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
         save_items(df)
         st.success("Item saved successfully!")
 
@@ -205,6 +204,7 @@ else:
         st.dataframe(fb,hide_index=True)
     else:
         st.info("No feedback yet.")
+
 
 
 
