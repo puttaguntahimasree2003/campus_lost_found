@@ -164,7 +164,7 @@ st.markdown(
 st.title("🏛️Campus Lost & Found with AutoMatch")
 
 
-menu = st.sidebar.radio("Navigation", ["Add Found Item", "Search Lost Item", "Feedback & Logs"])
+menu = st.sidebar.radio( ["Add Found Item", "Search Lost Item", "Feedback & Logs"])
 
 # --------- Add page ---------
 
@@ -296,4 +296,5 @@ else:
             st.write(f"Overall positive rate: {(good / total) * 100:.1f}%")
         st.markdown("### Raw Feedback")
         st.dataframe(fb.reset_index(drop=True), hide_index=True, use_container_width=True)
+
 
