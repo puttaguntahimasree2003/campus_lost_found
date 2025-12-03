@@ -160,9 +160,6 @@ if st.button("Save"):
     df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
     df.to_csv("items.csv", index=False)
     st.success("Item added successfully!")
-        save_items(df)
-        st.success("Item saved successfully!")
-
     st.write("### Stored Items")
     df = load_items()
     st.dataframe(df[["id","description","location","date","contact"]], hide_index=True)
