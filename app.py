@@ -72,7 +72,8 @@ df = load_items()
 # --------------------------------------------------------
 # ADD FOUND ITEM
 # --------------------------------------------------------
-elif menu == "Add Found Item":
+if mode == "➕ Add Found Item":
+    st.header("➕ Add Found Item")
 
     st.header("➕ Add Found Item")
 
@@ -169,6 +170,7 @@ elif menu == "🔍 Search Lost Item":
                 *Date:* {row['date']}  
                 *Contact:* {row['contact']}  
                 """)
+
 
 
 
