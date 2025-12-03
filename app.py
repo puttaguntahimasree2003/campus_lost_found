@@ -53,7 +53,7 @@ def compute_image_similarity(query_rgb, df):
             sims.append(0)  
         else:
             fr, fg, fb = row["r"], row["g"], row["b"]
-            dist = np.sqrt((qr-fr)*2 + (qg-fg)2 + (qb-fb)*2)
+            dist = np.sqrt((qr-fr)*2 + (qg-fg)*2 + (qb-fb)*2)
             sim = max(0, 1 - dist/441.67)  
             sims.append(sim)
     return np.array(sims)
@@ -147,3 +147,4 @@ elif menu == "🔍 Search Lost Item":
                 *Date:* {row['date']}  
                 *Contact:* {row['contact']}  
                 """)
+
