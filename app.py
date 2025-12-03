@@ -124,12 +124,12 @@ feedback_df = st.session_state.feedback_df
 
 # PAGE TITLE
 
-st.title("🏫 Campus Lost & Found – AutoMatch + Feedback (Persistent)")
+st.title("🏫 Campus Lost & Found with AutoMatch")
 
 # TABS
 
 tab_add, tab_manage, tab_search, tab_feedback = st.tabs(
-    ["➕ Add Item", "📝 View / Edit / Delete", "🔍 Search & Feedback", "📋 All Feedback"]
+    ["➕ Add Item", "📝 View / Edit / Delete", "🔍 Search Item", "📋Feedback"]
 )
 
 
@@ -472,6 +472,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
