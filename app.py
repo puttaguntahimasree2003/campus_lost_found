@@ -5,7 +5,7 @@
 # - add / edit / delete items
 # - feedback stored in feedback.csv
 # - text AutoMatch using TF-IDF
-# - Search tab has feedback + controls
+# - Search tab has feedback + optional image display
 # - Feedback tab only shows feedback table
 
 import os
@@ -265,7 +265,7 @@ with tab_manage:
 
 
 # ----------------------------------------------------
-# TAB 3: SEARCH + FEEDBACK (TOGETHER)
+# TAB 3: SEARCH + FEEDBACK (WITH IMAGE TOGGLE)
 # ----------------------------------------------------
 with tab_search:
     st.subheader("Search items and give feedback")
@@ -290,6 +290,9 @@ with tab_search:
             max_value=max_results,
             value=min(5, max_results),
         )
+
+        # NEW: checkbox to show/hide images in search results
+        show_images = st.checkbox("Show item images", value=False)
 
         if query.strip() == "":
             st.info("Type a description to search 😊")
@@ -344,12 +347,14 @@ with tab_search:
                             f"Similarity score: {row['similarity'] * 100:.1f}%"
                         )
 
-                        if (
-                            isinstance(row["image"], str)
-                            and row["image"] != ""
-                            and os.path.exists(row["image"])
-                        ):
-                            st.image(row["image"], width=200)
+                        # show image only if checkbox is ticked
+                        if show_images:
+                            if (
+                                isinstance(row["image"], str)
+                                and row["image"] != ""
+                                and os.path.exists(row["image"])
+                            ):
+                                st.image(row["image"], width=200)
 
                         # ---- Feedback section for this item (in Search tab) ----
                         st.markdown("**Feedback on this suggestion:**")
@@ -408,4 +413,3 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
-
