@@ -72,32 +72,44 @@ df = load_items()
 # --------------------------------------------------------
 # ADD FOUND ITEM
 # --------------------------------------------------------
-if menu == "➕ Add Found Item":
+elif menu == "➕ Add Found Item":
 
-    st.header("Add Found Item")
-    # show table
+    st.header("➕ Add Found Item")
+
+    # Load items here
+    df = load_items()
+
+    # Show existing items inside this page only
     st.subheader("📄 Current Stored Items")
     if df.empty:
-        st.info("No items found yet.")
+        st.info("No items added yet.")
     else:
-        st.dataframe(df[["id", "description", "location", "date", "contact"]])
+        st.dataframe(
+            df[["id", "description", "location", "date", "contact"]]
+            .reset_index(drop=True)
+        )
 
-
-
+    # Input fields
     desc = st.text_input("Found Item Description")
     loc = st.text_input("Location Found")
     date = st.date_input("Date Found")
     contact = st.text_input("Contact Number")
 
-    uploaded_img = st.file_uploader("Upload Image (optional)", type=["jpg","jpeg","png"], key="add_img")
+    uploaded_img = st.file_uploader(
+        "Upload Image (optional)",
+        type=["jpg", "jpeg", "png"],
+        key="add_img"
+    )
 
-    # extract rgb
+    # Extract image features if image uploaded
     if uploaded_img:
         r, g, b = extract_image_features(uploaded_img)
     else:
         r, g, b = None, None, None
 
+    # Save button
     if st.button("Save Found Item"):
+        df = load_items()
         new_id = 1 if df.empty else df["id"].max() + 1
 
         new_row = {
@@ -113,7 +125,9 @@ if menu == "➕ Add Found Item":
 
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         save_items(df)
-        st.success("Item added successfully! 🎉")
+
+        st.success("🎉 Item added successfully!")
+
 
 # --------------------------------------------------------
 # SEARCH LOST ITEM
@@ -155,6 +169,7 @@ elif menu == "🔍 Search Lost Item":
                 *Date:* {row['date']}  
                 *Contact:* {row['contact']}  
                 """)
+
 
 
 
