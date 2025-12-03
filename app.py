@@ -9,7 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 # ----------------------------------------------------
-# PAGE CONFIG + SIMPLE THEME
+# BASIC PAGE CONFIG + SIMPLE BORDER STYLE
 # ----------------------------------------------------
 st.set_page_config(page_title="Campus Lost & Found - AutoMatch", layout="wide")
 
@@ -37,36 +37,36 @@ st.markdown(
     .stButton>button:hover {
         background: linear-gradient(90deg, #1d4ed8, #7e22ce);
     }
-    /* remove weird empty grey boxes around headings */
-    div:has(> .remove-box) {
-        padding: 0;
-        border: none;
-        background: transparent;
-    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 # ----------------------------------------------------
-# FILE CONSTANTS
+# PATHS / CONSTANTS
 # ----------------------------------------------------
-ITEMS_FILE = "items.csv"
-FEEDBACK_FILE = "feedback.csv"
+
+# Data directory (Streamlit Cloud gives /mount/data; locally just ".")
+DATA_DIR = "/mount/data" if os.path.isdir("/mount/data") else "."
+BASE_ITEMS_FILE = "items.csv"  # seed file in repo
+ITEMS_FILE = os.path.join(DATA_DIR, "items.csv")
+FEEDBACK_FILE = os.path.join(DATA_DIR, "feedback.csv")
 
 ITEM_COLS = ["id", "description", "location", "date", "contact", "img_r", "img_g", "img_b"]
+
 
 # ----------------------------------------------------
 # DATA HELPERS
 # ----------------------------------------------------
-def load_items() -> pd.DataFrame:
-    """Load items.csv and ensure required columns exist."""
-    if os.path.exists(ITEMS_FILE):
-        df = pd.read_csv(ITEMS_FILE)
-    else:
-        df = pd.DataFrame(columns=ITEM_COLS)
+def ensure_data_dir():
+    if DATA_DIR != ".":
+        os.makedirs(DATA_DIR, exist_ok=True)
 
-    # make sure all columns exist
+
+def normalize_items_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Make sure all item columns exist and have correct types."""
+    df = df.copy()
+
     for col in ITEM_COLS:
         if col not in df.columns:
             if col in ["img_r", "img_g", "img_b"]:
@@ -78,41 +78,66 @@ def load_items() -> pd.DataFrame:
 
     df = df[ITEM_COLS]
 
-    # fix id
+    # id as int, 1..n if missing/0
     df["id"] = pd.to_numeric(df["id"], errors="coerce").fillna(0).astype(int)
     if (df["id"] == 0).any():
         df["id"] = range(1, len(df) + 1)
 
-    # numeric image cols
+    # numeric image columns
     for c in ["img_r", "img_g", "img_b"]:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
 
-    # text cols
+    # string columns
     for c in ["description", "location", "date", "contact"]:
         df[c] = df[c].fillna("").astype(str)
 
-    # remove .0 from contacts that came from excel
+    # remove ".0" from contact if it came from Excel
     df["contact"] = df["contact"].str.replace(r"\.0$", "", regex=True)
 
     return df
 
 
+def load_items() -> pd.DataFrame:
+    """Load items.csv from data dir; if missing, seed from repo items.csv."""
+    ensure_data_dir()
+
+    if not os.path.exists(ITEMS_FILE):
+        # Seed from repo items.csv if present
+        if os.path.exists(BASE_ITEMS_FILE):
+            base_df = pd.read_csv(BASE_ITEMS_FILE)
+            base_df = normalize_items_df(base_df)
+            base_df.to_csv(ITEMS_FILE, index=False)
+            return base_df
+        else:
+            df = pd.DataFrame(columns=ITEM_COLS)
+            df = normalize_items_df(df)
+            df.to_csv(ITEMS_FILE, index=False)
+            return df
+
+    df = pd.read_csv(ITEMS_FILE)
+    df = normalize_items_df(df)
+    return df
+
+
 def save_items(df: pd.DataFrame) -> None:
+    """Save items back to the data CSV."""
+    ensure_data_dir()
+    df = normalize_items_df(df)
     df.to_csv(ITEMS_FILE, index=False)
 
 
 def load_feedback() -> pd.DataFrame:
+    ensure_data_dir()
     if os.path.exists(FEEDBACK_FILE):
         return pd.read_csv(FEEDBACK_FILE)
-    return pd.DataFrame(
-        columns=["lost_query", "matched_id", "score", "feedback", "timestamp"]
-    )
+    return pd.DataFrame(columns=["lost_query", "matched_id", "score", "feedback", "timestamp"])
 
 
 def append_feedback(lost_query: str, matched_id: int, score: float, good: bool) -> None:
-    """Add one feedback row to feedback.csv."""
+    """Append one feedback row to feedback.csv."""
+    ensure_data_dir()
     row = {
-        "lost_query": lost_query,
+        "lost_query": str(lost_query),
         "matched_id": int(matched_id),
         "score": float(score),
         "feedback": "good" if good else "bad",
@@ -127,8 +152,9 @@ def append_feedback(lost_query: str, matched_id: int, score: float, good: bool) 
 
     df.to_csv(FEEDBACK_FILE, index=False)
 
+
 # ----------------------------------------------------
-# IMAGE + SIMILARITY HELPERS
+# IMAGE & SIMILARITY HELPERS
 # ----------------------------------------------------
 def extract_rgb(uploaded_file):
     """Return mean RGB of uploaded image, or (0,0,0) if none or error."""
@@ -225,6 +251,7 @@ def rank_matches(df, q_text, q_loc, q_date_str, q_rgb):
 
     return df.sort_values("hybrid_score", ascending=False)
 
+
 # ----------------------------------------------------
 # PAGE: ADD FOUND ITEM
 # ----------------------------------------------------
@@ -247,14 +274,14 @@ def add_found_item_page():
         key="add_image",
     )
     if img_file is not None:
-        st.markdown("**Preview**", help="Small preview of uploaded image")
+        st.markdown("**Preview**")
         st.image(img_file, caption="Found item image", width=220)
 
     if st.button("Save Found Item"):
         if not desc.strip():
             st.error("Description cannot be empty.")
         else:
-            df = load_items()
+            df = load_items()  # reload latest
             new_id = 1 if df.empty else int(df["id"].max()) + 1
             r, g, b = extract_rgb(img_file)
             new_row = {
@@ -271,7 +298,7 @@ def add_found_item_page():
             save_items(df)
             st.success("Found item saved successfully ✅")
 
-    st.markdown("### Current Stored Items", unsafe_allow_html=True)
+    st.markdown("### Current Stored Items")
     df = load_items()
     if df.empty:
         st.info("No items stored yet.")
@@ -281,6 +308,7 @@ def add_found_item_page():
             hide_index=True,
             use_container_width=True,
         )
+
 
 # ----------------------------------------------------
 # PAGE: SEARCH LOST ITEM
@@ -334,6 +362,7 @@ def search_lost_item_page():
         else:
             st.markdown("### Best Matches")
             for i, (_, row) in enumerate(ranked.iterrows(), start=1):
+                # Bold first line
                 st.markdown(
                     f"**Match {i}: Overall Score {row['hybrid_score'] * 100:.1f}%**"
                 )
@@ -349,38 +378,17 @@ def search_lost_item_page():
                 )
 
                 c1, c2 = st.columns(2)
-
                 with c1:
-                    clicked_good = st.button(
-                        f"Helpful (ID {int(row['id'])})",
-                        key=f"good_{int(row['id'])}",
-                    )
-                    if clicked_good:
-                        append_feedback(
-                            lost_query=q_text,
-                            matched_id=int(row["id"]),
-                            score=float(row["hybrid_score"]),
-                            good=True,
-                        )
-                        st.success("Thanks, feedback recorded ✅")
-
+                    if st.button(f"Helpful (ID {row['id']})", key=f"good_{row['id']}"):
+                        append_feedback(q_text, row["id"], row["hybrid_score"], True)
+                        st.success("Thanks, feedback recorded.")
                 with c2:
-                    clicked_bad = st.button(
-                        f"Not useful (ID {int(row['id'])})",
-                        key=f"bad_{int(row['id'])}",
-                    )
-                    if clicked_bad:
-                        append_feedback(
-                            lost_query=q_text,
-                            matched_id=int(row["id"]),
-                            score=float(row["hybrid_score"]),
-                            good=False,
-                        )
-                        st.warning("Marked as not useful ⚠️")
+                    if st.button(f"Not useful (ID {row['id']})", key=f"bad_{row['id']}"):
+                        append_feedback(q_text, row["id"], row["hybrid_score"], False)
+                        st.warning("Marked as not useful.")
 
                 st.markdown("---")
 
-              
 
 # ----------------------------------------------------
 # PAGE: FEEDBACK LOGS
@@ -410,6 +418,7 @@ def feedback_page():
         use_container_width=True,
     )
 
+
 # ----------------------------------------------------
 # MAIN APP
 # ----------------------------------------------------
@@ -418,6 +427,7 @@ st.title("🏫 Campus Lost & Found with AutoMatch")
 page = st.selectbox(
     "Choose action",
     ["Add Found Item", "Search Lost Item", "Feedback & Logs"],
+    index=0,
 )
 
 if page == "Add Found Item":
@@ -426,5 +436,3 @@ elif page == "Search Lost Item":
     search_lost_item_page()
 else:
     feedback_page()
-
-
