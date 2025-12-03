@@ -381,7 +381,7 @@ elif mode == "🔍 Search Lost Item":
                     st.write(f"*Location:* {row['location']}")
                     st.write(f"*Date found:* {row['date']}")
                     st.write(f"*Contact:* {row['contact']}")
-                    st.write(f"Text similarity: {row['text_sim']100:.1f}%  |  *Image similarity: {row['img_sim']*100:.1f}%")
+                    st.write(f"Text similarity: {row['text_sim']*100:.1f}%  |  *Image similarity: {row['img_sim']*100:.1f}%")
 
                 # Extra: show predictions from classical models
                 st.markdown("### 🧠 Category prediction using extra ML models")
@@ -423,3 +423,4 @@ These metrics are computed on a small set of hand-crafted test queries:
 - Precision@k measures how often the correct item appears in the top-k results.  
 - MRR measures how early the correct item appears in the ranking (1 for rank 1, 0.5 for rank 2, etc.).
         """)
+
