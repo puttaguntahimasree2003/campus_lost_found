@@ -75,6 +75,14 @@ df = load_items()
 if menu == "➕ Add Found Item":
 
     st.header("Add Found Item")
+    # show table
+    st.subheader("📄 Current Stored Items")
+    if df.empty:
+        st.info("No items found yet.")
+    else:
+        st.dataframe(df[["id", "description", "location", "date", "contact"]])
+
+
 
     desc = st.text_input("Found Item Description")
     loc = st.text_input("Location Found")
@@ -147,5 +155,6 @@ elif menu == "🔍 Search Lost Item":
                 *Date:* {row['date']}  
                 *Contact:* {row['contact']}  
                 """)
+
 
 
