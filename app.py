@@ -206,7 +206,7 @@ with tab_add:
 # TAB 2: VIEW / EDIT / DELETE
 # ----------------------------------------------------
 with tab_manage:
-    st.subheader("All items (persistent)")
+    st.subheader("All items")
 
     items_df = st.session_state.items_df
 
@@ -484,4 +484,5 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
