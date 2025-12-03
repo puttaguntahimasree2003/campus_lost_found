@@ -1,6 +1,5 @@
 import os
 from datetime import datetime
-
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -8,9 +7,6 @@ from PIL import Image
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# ----------------------------------------------------
-# BASIC CONFIG
-# ----------------------------------------------------
 st.set_page_config(page_title="Campus Lost & Found", layout="wide")
 
 ITEMS_FILE = "items.csv"
@@ -19,10 +15,8 @@ IMAGE_DIR = "images"
 
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
-
-# ----------------------------------------------------
 # HELPERS TO LOAD & SAVE DATA (PERSISTENT)
-# ----------------------------------------------------
+
 def load_items():
     """Load items.csv into session_state.items_df and ensure required columns exist."""
     if "items_df" in st.session_state:
@@ -134,14 +128,14 @@ feedback_df = st.session_state.feedback_df
 # ----------------------------------------------------
 # PAGE TITLE
 # ----------------------------------------------------
-st.title("🏫 Campus Lost & Found – AutoMatch + Feedback (Persistent)")
+st.title("🏫 Campus Lost & Found with AutoMatch")
 
 
 # ----------------------------------------------------
 # TABS
 # ----------------------------------------------------
 tab_add, tab_manage, tab_search, tab_feedback = st.tabs(
-    ["➕ Add Item", "📝 View / Edit / Delete", "🔍 Search & Feedback", "📋 All Feedback"]
+    ["➕ Add Item", "📝 View / Edit / Delete", "🔍 Search Item", "📋 All Feedback"]
 )
 
 
@@ -149,7 +143,7 @@ tab_add, tab_manage, tab_search, tab_feedback = st.tabs(
 # TAB 1: ADD ITEM
 # ----------------------------------------------------
 with tab_add:
-    st.subheader("Add a new lost / found item")
+    st.subheader("Add a item you found")
 
     with st.form("add_item_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
@@ -210,7 +204,6 @@ with tab_add:
 
 # ----------------------------------------------------
 # TAB 2: VIEW / EDIT / DELETE
-#  (fixed: fields update properly when ID changes)
 # ----------------------------------------------------
 with tab_manage:
     st.subheader("All items (persistent)")
@@ -238,36 +231,20 @@ with tab_manage:
 
         row = items_df[items_df["id"] == selected_id].iloc[0]
 
-        # --- ensure edit fields reset when selected_id changes ---
-        if "last_selected_id" not in st.session_state or st.session_state.last_selected_id != selected_id:
-            st.session_state.edit_desc = row["description"]
-            st.session_state.edit_loc = row["location"]
-            st.session_state.edit_date = row["date"]
-            st.session_state.edit_contact = row["contact"]
-            st.session_state.last_selected_id = selected_id
-
         col1, col2 = st.columns(2)
         with col1:
             new_desc = st.text_input(
-                "Description",
-                st.session_state.edit_desc,
-                key="edit_desc",
+                "Description", row["description"], key=f"edit_desc_{selected_id}"
             )
             new_loc = st.text_input(
-                "Location",
-                st.session_state.edit_loc,
-                key="edit_loc",
+                "Location", row["location"], key=f"edit_loc_{selected_id}"
             )
             new_date = st.text_input(
-                "Date (YYYY-MM-DD)",
-                st.session_state.edit_date,
-                key="edit_date",
+                "Date (YYYY-MM-DD)", row["date"], key=f"edit_date_{selected_id}"
             )
         with col2:
             new_contact = st.text_input(
-                "Contact",
-                st.session_state.edit_contact,
-                key="edit_contact",
+                "Contact", row["contact"], key=f"edit_contact_{selected_id}"
             )
 
             st.write("Current image:")
@@ -296,12 +273,6 @@ with tab_manage:
                 st.session_state.items_df.at[idx, "date"] = new_date
                 st.session_state.items_df.at[idx, "contact"] = new_contact
 
-                # keep edit fields in sync with saved values
-                st.session_state.edit_desc = new_desc
-                st.session_state.edit_loc = new_loc
-                st.session_state.edit_date = new_date
-                st.session_state.edit_contact = new_contact
-
                 if new_image_upload is not None:
                     safe_name = (
                         f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{new_image_upload.name}"
@@ -328,7 +299,6 @@ with tab_manage:
 
 # ----------------------------------------------------
 # TAB 3: SEARCH + FEEDBACK (TEXT + IMAGE SIMILARITY)
-#  (fixed: feedback comment clears after submit)
 # ----------------------------------------------------
 with tab_search:
     st.subheader("Search items and give feedback")
@@ -357,7 +327,7 @@ with tab_search:
         # checkbox to show/hide images in search results
         show_images = st.checkbox("Show item images", value=False)
 
-        # upload query image to get image similarity
+        # NEW: upload query image to get image similarity
         query_image_file = st.file_uploader(
             "Upload image to match (optional for image similarity)",
             type=["png", "jpg", "jpeg"],
@@ -459,19 +429,16 @@ with tab_search:
                         # ---- Feedback section for this item (in Search tab) ----
                         st.markdown("**Feedback on this suggestion:**")
                         fb_col1, fb_col2 = st.columns([1, 3])
-                        rating_key = f"fb_rating_{item_id}"
-                        comment_key = f"fb_comment_{item_id}"
-
                         with fb_col1:
                             rating = st.radio(
                                 f"Helpful? (ID {item_id})",
                                 ["Yes", "No"],
-                                key=rating_key,
+                                key=f"fb_rating_{item_id}",
                             )
                         with fb_col2:
                             comment = st.text_input(
                                 "Comment (optional)",
-                                key=comment_key,
+                                key=f"fb_comment_{item_id}",
                                 placeholder="Why was this helpful / not helpful?",
                             )
 
@@ -494,18 +461,13 @@ with tab_search:
                                 ignore_index=True,
                             )
                             save_feedback()
-
-                            # clear just this comment field after submit
-                            st.session_state[comment_key] = ""
-
                             st.success("Feedback saved, thank you 💛")
 
                         st.markdown("---")
 
 
-# ----------------------------------------------------
 # TAB 4: FEEDBACK TABLE ONLY
-# ----------------------------------------------------
+
 with tab_feedback:
     st.subheader("All feedback given")
 
@@ -522,4 +484,3 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
-
