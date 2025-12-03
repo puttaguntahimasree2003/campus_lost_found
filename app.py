@@ -63,7 +63,7 @@ def compute_image_similarity(query_rgb, df):
 # ---------------------------
 st.set_page_config(page_title="Campus Lost & Found with AutoMatch", layout="wide")
 
-st.title("🎒 Campus Lost & Found – AutoMatch+")
+st.title("🏛️ Campus Lost & Found with AutoMatch")
 
 menu = st.sidebar.radio("Choose an action:", ["➕ Add Found Item", "🔍 Search Lost Item"])
 
@@ -147,4 +147,5 @@ elif menu == "🔍 Search Lost Item":
                 *Date:* {row['date']}  
                 *Contact:* {row['contact']}  
                 """)
+
 
