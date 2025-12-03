@@ -310,10 +310,10 @@ with tab_search:
     else:
         # search controls
         query = st.text_input(
-            "Describe what you're looking for (description keywords)*", ""
+            "Describe what you're looking for", ""
         )
         location_filter = st.text_input(
-            "Location filter (optional)", placeholder="e.g. Girls Hostel"
+            "Location (optional)", placeholder="e.g. Girls Hostel"
         )
 
         max_results = min(20, len(items_df))
@@ -484,3 +484,4 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
