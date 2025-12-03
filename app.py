@@ -1,11 +1,3 @@
-# app.py
-# Campus Lost & Found – Persistent Version
-# - items saved in items.csv (never reset)
-# - images stored in /images folder
-# - add / edit / delete items
-# - feedback stored in feedback.csv
-# - simple text AutoMatch using TF-IDF
-
 import os
 from datetime import datetime
 
@@ -217,14 +209,14 @@ with tab_manage:
 
                 save_items()
                 st.success("Item updated and saved ✅")
-                st.experimental_rerun()
+                st.rerun()
 
         with col_btn2:
             if st.button("🗑️ Delete item", key=f"delete_{selected_id}"):
                 st.session_state.items_df = items_df[items_df["id"] != selected_id].reset_index(drop=True)
                 save_items()
                 st.success(f"Item #{selected_id} deleted ❌")
-                st.experimental_rerun()
+                st.rerun()
 
 
 # ----------------------------------------------------
@@ -308,3 +300,4 @@ with tab_search:
             st.caption("No feedback yet.")
         else:
             st.dataframe(st.session_state.feedback_df, use_container_width=True)
+
