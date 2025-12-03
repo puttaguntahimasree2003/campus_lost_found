@@ -65,14 +65,14 @@ st.set_page_config(page_title="Campus Lost & Found with AutoMatch", layout="wide
 
 st.title("🏛️ Campus Lost & Found with AutoMatch")
 
-menu = st.sidebar.radio("Choose an action:", ["➕ Add Found Item", "🔍 Search Lost Item"])
+menu = st.sidebar.radio("Choose an action:", ["Add Found Item", "🔍 Search Lost Item"])
 
 df = load_items()
 
 # --------------------------------------------------------
 # ADD FOUND ITEM
 # --------------------------------------------------------
-elif menu == "➕ Add Found Item":
+elif menu == "Add Found Item":
 
     st.header("➕ Add Found Item")
 
@@ -169,6 +169,7 @@ elif menu == "🔍 Search Lost Item":
                 *Date:* {row['date']}  
                 *Contact:* {row['contact']}  
                 """)
+
 
 
 
