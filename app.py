@@ -329,10 +329,10 @@ def search_lost_item_page():
 
         ranked = rank_matches(df, q_text, q_loc, q_date_str, q_rgb).head(top_k)
 
-        if ranked.empty:
+                if ranked.empty:
             st.warning("No matches found.")
         else:
-            st.markdown("### Best Matches", unsafe_allow_html=True)
+            st.markdown("### Best Matches")
             for i, (_, row) in enumerate(ranked.iterrows(), start=1):
                 st.markdown(
                     f"**Match {i}: Overall Score {row['hybrid_score'] * 100:.1f}%**"
@@ -349,20 +349,38 @@ def search_lost_item_page():
                 )
 
                 c1, c2 = st.columns(2)
+
                 with c1:
-                    if st.button(
-                        f"Helpful (ID {row['id']})", key=f"good_{row['id']}"
-                    ):
-                        append_feedback(q_text, row["id"], row["hybrid_score"], True)
-                        st.success("Thanks, feedback recorded.")
+                    clicked_good = st.button(
+                        f"Helpful (ID {int(row['id'])})",
+                        key=f"good_{int(row['id'])}",
+                    )
+                    if clicked_good:
+                        append_feedback(
+                            lost_query=q_text,
+                            matched_id=int(row["id"]),
+                            score=float(row["hybrid_score"]),
+                            good=True,
+                        )
+                        st.success("Thanks, feedback recorded ✅")
+
                 with c2:
-                    if st.button(
-                        f"Not useful (ID {row['id']})", key=f"bad_{row['id']}"
-                    ):
-                        append_feedback(q_text, row["id"], row["hybrid_score"], False)
-                        st.warning("Marked as not useful.")
+                    clicked_bad = st.button(
+                        f"Not useful (ID {int(row['id'])})",
+                        key=f"bad_{int(row['id'])}",
+                    )
+                    if clicked_bad:
+                        append_feedback(
+                            lost_query=q_text,
+                            matched_id=int(row["id"]),
+                            score=float(row["hybrid_score"]),
+                            good=False,
+                        )
+                        st.warning("Marked as not useful ⚠️")
 
                 st.markdown("---")
+
+              
 
 # ----------------------------------------------------
 # PAGE: FEEDBACK LOGS
@@ -408,3 +426,4 @@ elif page == "Search Lost Item":
     search_lost_item_page()
 else:
     feedback_page()
+
