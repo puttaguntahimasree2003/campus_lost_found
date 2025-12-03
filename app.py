@@ -339,11 +339,11 @@ def search_lost_item_page():
                 c1, c2 = st.columns(2)
                 with c1:
                     if st.button(f"Helpful (ID {row['id']})", key=f"good_{row['id']}"):
-                        append_feedback(q_text, int row["id"], float row["hybrid_score"], True)
+                        append_feedback(q_text,int row["id"],float row["hybrid_score"], True)
                         st.success("Thanks, feedback recorded.")
                 with c2:
                     if st.button(f"Not useful (ID {row['id']})", key=f"bad_{row['id']}"):
-                        append_feedback(q_text, int row["id"], float row["hybrid_score"], False)
+                        append_feedback(q_text,int row["id"],float row["hybrid_score"], False)
                         st.warning("Marked as not useful.")
 
                 st.markdown("---")
@@ -392,6 +392,7 @@ elif page == "Search Lost Item":
     search_lost_item_page()
 else:
     feedback_page()
+
 
 
 
