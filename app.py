@@ -117,7 +117,7 @@ def save_feedback(item_id, score, good):
 
 
 # ---------- UI ----------
-st.title("🏛️Campus Lost & Found with AutoMatch)")
+st.title("🏛️Campus Lost & Found with AutoMatch")
 
 choice = st.sidebar.radio("Menu", ["➕ Add Found Item", "🔍 Search Lost Item", "📊 Feedback"])
 
@@ -188,4 +188,5 @@ else:
         st.dataframe(fb,hide_index=True)
     else:
         st.info("No feedback yet.")
+
 
