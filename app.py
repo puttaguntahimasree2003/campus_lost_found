@@ -310,7 +310,9 @@ with tab_search:
     else:
         # search controls
         query = st.text_input(
-            "Describe what you're looking for", ""
+                "Describe what you're looking for*", placeholder="Red water bottle with scratches..."
+            )
+
         )
         location_filter = st.text_input(
             "Location (optional)", placeholder="e.g. Girls Hostel"
@@ -484,5 +486,6 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
