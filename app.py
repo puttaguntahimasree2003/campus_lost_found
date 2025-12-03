@@ -189,9 +189,6 @@ elif page == "feedback":
     show_feedback_page()
         
 
-# Default page
-if "page" not in st.session_state:
-    st.session_state["page"] = "search"
 
 # --------- Add page ---------
 
@@ -323,6 +320,7 @@ else:
             st.write(f"Overall positive rate: {(good / total) * 100:.1f}%")
         st.markdown("### Raw Feedback")
         st.dataframe(fb.reset_index(drop=True), hide_index=True, use_container_width=True)
+
 
 
 
