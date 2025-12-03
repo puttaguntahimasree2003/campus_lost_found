@@ -6,7 +6,7 @@
 # - feedback stored in feedback.csv
 # - text AutoMatch using TF-IDF
 # - Search tab has feedback + optional image display
-# - Feedback tab only shows feedback table
+# - Feedback tab shows table with: item_id, helpful, comment, time
 
 import os
 from datetime import datetime
@@ -62,14 +62,26 @@ def load_items():
 
 
 def load_feedback():
-    """Load feedback.csv into session_state.feedback_df."""
+    """Load feedback.csv into session_state.feedback_df with columns:
+       item_id, helpful, comment, time
+    """
     if "feedback_df" in st.session_state:
         return
+
+    required_cols = ["item_id", "helpful", "comment", "time"]
 
     if os.path.exists(FEEDBACK_FILE):
         df = pd.read_csv(FEEDBACK_FILE)
     else:
-        df = pd.DataFrame(columns=["time", "item_id", "rating", "comment", "query"])
+        df = pd.DataFrame(columns=required_cols)
+
+    # ensure all required columns exist
+    for col in required_cols:
+        if col not in df.columns:
+            df[col] = ""
+
+    # keep only required columns in correct order
+    df = df[required_cols]
 
     st.session_state.feedback_df = df
     st.session_state.feedback_df.to_csv(FEEDBACK_FILE, index=False)
@@ -80,6 +92,13 @@ def save_items():
 
 
 def save_feedback():
+    # always save only the 4 feedback columns in correct order
+    required_cols = ["item_id", "helpful", "comment", "time"]
+    df = st.session_state.feedback_df
+    for col in required_cols:
+        if col not in df.columns:
+            df[col] = ""
+    st.session_state.feedback_df = df[required_cols]
     st.session_state.feedback_df.to_csv(FEEDBACK_FILE, index=False)
 
 
@@ -280,7 +299,7 @@ with tab_search:
             "Describe what you're looking for (description keywords)*", ""
         )
         location_filter = st.text_input(
-            "Location (optional)", placeholder="e.g. Girls Hostel"
+            "Location filter (optional)", placeholder="e.g. Girls Hostel"
         )
 
         max_results = min(20, len(items_df))
@@ -291,7 +310,7 @@ with tab_search:
             value=min(5, max_results),
         )
 
-        # NEW: checkbox to show/hide images in search results
+        # checkbox to show/hide images in search results
         show_images = st.checkbox("Show item images", value=False)
 
         if query.strip() == "":
@@ -376,13 +395,12 @@ with tab_search:
                             "Submit feedback", key=f"fb_btn_{item_id}"
                         ):
                             new_fb = {
+                                "item_id": item_id,
+                                "helpful": rating,  # Yes / No
+                                "comment": comment.strip(),
                                 "time": datetime.now().strftime(
                                     "%Y-%m-%d %H:%M:%S"
                                 ),
-                                "item_id": item_id,
-                                "rating": rating,
-                                "comment": comment.strip(),
-                                "query": query.strip(),
                             }
                             st.session_state.feedback_df = pd.concat(
                                 [
@@ -408,8 +426,11 @@ with tab_feedback:
     if feedback_df.empty:
         st.caption("No feedback yet.")
     else:
+        # show only item_id, helpful, comment, time in order
+        cols = ["item_id", "helpful", "comment", "time"]
+        existing = [c for c in cols if c in feedback_df.columns]
         st.dataframe(
-            feedback_df,
+            feedback_df[existing],
             use_container_width=True,
             hide_index=True,
         )
