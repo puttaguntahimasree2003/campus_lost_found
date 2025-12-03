@@ -8,7 +8,9 @@ from PIL import Image
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# ---------------- CONFIG ----------------
+
+# ============== CONFIG ==============
+
 DATA_FILE = "items.csv"
 FEEDBACK_FILE = "feedback.csv"
 IMAGE_DIR = "images"
@@ -28,14 +30,14 @@ EXPECTED_COLUMNS = [
 ]
 
 
-# ----------- DATA HELPERS ---------------
+# ============== DATA HELPERS ==============
 
 def ensure_items_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Make sure dataframe has all required columns."""
+    """Ensure dataframe has all required columns and correct types."""
     if df is None or df.empty:
         df = pd.DataFrame(columns=EXPECTED_COLUMNS)
 
-    # normalize column names
+    # normalize column names to lower
     df.columns = [str(c).strip().lower() for c in df.columns]
 
     # add missing columns
@@ -48,17 +50,22 @@ def ensure_items_df(df: pd.DataFrame) -> pd.DataFrame:
             else:
                 df[col] = ""
 
-    # order columns
+    # reorder
     df = df[EXPECTED_COLUMNS]
 
-    # fix id
+    # id numeric
     df["id"] = pd.to_numeric(df["id"], errors="coerce").fillna(0).astype(int)
     if (df["id"] == 0).any():
         df["id"] = range(1, len(df) + 1)
 
-    # numeric image cols
+    # image numeric
     for col in ["img_r", "img_g", "img_b"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+
+    # text columns as string (no NaN)
+    for col in ["description", "location", "date", "contact", "image_path"]:
+        if col in df.columns:
+            df[col] = df[col].fillna("").astype(str)
 
     return df
 
@@ -98,12 +105,12 @@ def save_feedback(lost_query: str, matched_id: int, score: float, good: bool) ->
     df.to_csv(FEEDBACK_FILE, index=False)
 
 
-# -------- IMAGE FEATURES (MEAN RGB) --------
+# ============== IMAGE FEATURES (MEAN RGB) ==============
 
-def extract_image_features_and_save(file, save_path: str | None = None):
+def extract_image_features_and_save(file, save_path: str = ""):
     """
-    Returns (r,g,b) mean of image.
-    If save_path is provided, saves the image file there.
+    Return (r, g, b, image_path).
+    If save_path is provided, save the image there.
     """
     if file is None:
         return 0.0, 0.0, 0.0, ""
@@ -120,7 +127,7 @@ def extract_image_features_and_save(file, save_path: str | None = None):
         g = float(arr[:, :, 1].mean())
         b = float(arr[:, :, 2].mean())
 
-        return r, g, b, save_path if save_path else ""
+        return r, g, b, save_path
     except Exception:
         return 0.0, 0.0, 0.0, ""
 
@@ -134,15 +141,17 @@ def extract_image_features_only(file):
         img = Image.open(file).convert("RGB")
         img = img.resize((128, 128))
         arr = np.array(img, dtype=float)
+
         r = float(arr[:, :, 0].mean())
         g = float(arr[:, :, 1].mean())
         b = float(arr[:, :, 2].mean())
+
         return r, g, b
     except Exception:
         return 0.0, 0.0, 0.0
 
 
-# --------- MATCHING FUNCTIONS ------------
+# ============== MATCHING FUNCTIONS ==============
 
 def compute_text_similarity(query: str, df: pd.DataFrame) -> np.ndarray:
     descriptions = df["description"].fillna("").astype(str).tolist()
@@ -166,20 +175,25 @@ def compute_image_similarity(q_rgb, df: pd.DataFrame) -> np.ndarray:
         if r == g == b == 0.0:
             sims.append(0.0)
         else:
-            # Euclidean distance in RGB, converted to similarity
             dist = np.sqrt((qr - r) ** 2 + (qg - g) ** 2 + (qb - b) ** 2)
-            sim = max(0.0, 1.0 - dist / 441.7)  # 441.7 ~ max distance (255*sqrt(3))
+            # max RGB distance around 441.7
+            sim = max(0.0, 1.0 - dist / 441.7)
             sims.append(sim)
     return np.array(sims)
 
 
-def compute_location_score(found_loc: str, lost_loc: str) -> float:
-    if not lost_loc.strip():
+def compute_location_score(found_loc, lost_loc) -> float:
+    f = str(found_loc or "").strip().lower()
+    l = str(lost_loc or "").strip().lower()
+
+    if not l:
         return 0.0
-    f = found_loc.lower()
-    l = lost_loc.lower()
+    if not f:
+        return 0.0
+
     if l in f or f in l:
         return 1.0
+
     shared = set(f.split()) & set(l.split())
     return 1.0 if shared else 0.0
 
@@ -216,7 +230,7 @@ def compute_hybrid(df: pd.DataFrame,
     loc_scores = np.array([compute_location_score(row["location"], q_loc) for _, row in df.iterrows()])
     date_scores = np.array([compute_date_score(row["date"], q_date) for _, row in df.iterrows()])
 
-    # hybrid score weights
+    # weights
     alpha, beta, gamma, delta = 0.6, 0.15, 0.15, 0.1
     hybrid_score = alpha * text_sims + beta * img_sims + gamma * loc_scores + delta * date_scores
 
@@ -230,43 +244,49 @@ def compute_hybrid(df: pd.DataFrame,
     return df.sort_values("hybrid_score", ascending=False)
 
 
-# -------------- UI STYLE -----------------
+# ============== UI STYLE ==============
 
-st.set_page_config(page_title="Campus Lost & Found – AutoMatch", layout="wide")
+st.set_page_config(page_title="Campus Lost & Found - AutoMatch", layout="wide")
 
 st.markdown(
     """
     <style>
     .main {
-        background-color: #f9fafb;
+        background-color: #f5f7fb;
     }
     .stButton>button {
         border-radius: 8px;
-        padding: 0.4rem 1rem;
+        padding: 0.4rem 1.0rem;
         font-weight: 600;
+        border: 1px solid #2563eb;
+        background-color: #2563eb;
+        color: white;
+    }
+    .stButton>button:hover {
+        background-color: #1d4ed8;
+        border-color: #1d4ed8;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.title("🎒 Campus Lost & Found – AutoMatch (Hybrid Matching)")
-st.caption("Hybrid matching using text, image colour, location and date with simple feedback.")
+st.title("Campus Lost & Found - AutoMatch")
+st.caption("Hybrid matching using text, image colour, location and date with feedback logging.")
 
 menu = st.sidebar.radio(
-    "Navigation",
-    ["➕ Add Found Item", "🔍 Search Lost Item", "📊 Feedback & Logs"],
+    "Choose an action",
+    ["Add Found Item", "Search Lost Item", "Feedback & Logs"],
 )
 
 
-# -------------- ADD FOUND ITEM -------------
+# ============== ADD FOUND ITEM PAGE ==============
 
-if menu == "➕ Add Found Item":
-    st.subheader("➕ Add Found Item")
+if menu == "Add Found Item":
+    st.subheader("Add Found Item")
 
     items_df = load_items()
 
-    # Form inputs
     col1, col2 = st.columns(2)
     with col1:
         desc = st.text_input("Found Item Description")
@@ -312,9 +332,9 @@ if menu == "➕ Add Found Item":
 
             items_df = pd.concat([items_df, pd.DataFrame([new_row])], ignore_index=True)
             save_items(items_df)
-            st.success("✅ Found item saved successfully!")
+            st.success("Found item saved successfully!")
 
-    st.markdown("### 📄 Current Stored Items")
+    st.markdown("### Current Stored Items")
     items_df = load_items()
     if items_df.empty:
         st.info("No items stored yet.")
@@ -327,10 +347,10 @@ if menu == "➕ Add Found Item":
         )
 
 
-# ------------- SEARCH LOST ITEM ------------
+# ============== SEARCH LOST ITEM PAGE ==============
 
-elif menu == "🔍 Search Lost Item":
-    st.subheader("🔍 Search Lost Item")
+elif menu == "Search Lost Item":
+    st.subheader("Search Lost Item")
 
     items_df = load_items()
     if items_df.empty:
@@ -343,7 +363,8 @@ elif menu == "🔍 Search Lost Item":
         col1, col2 = st.columns(2)
         with col1:
             q_loc = st.text_input(
-                "Approximate location lost (optional)", placeholder="Library / CSE block / Canteen"
+                "Approximate location lost (optional)",
+                placeholder="Library / CSE block / Canteen",
             )
         with col2:
             q_date = st.date_input("Approximate date lost (optional)")
@@ -360,7 +381,6 @@ elif menu == "🔍 Search Lost Item":
             if not q_text.strip():
                 st.error("Please enter a description of the lost item.")
             else:
-                # extract query image features
                 q_r, q_g, q_b = extract_image_features_only(lost_image)
                 q_rgb = (q_r, q_g, q_b)
                 q_date_str = str(q_date) if q_date else ""
@@ -371,62 +391,76 @@ elif menu == "🔍 Search Lost Item":
                 if ranked.empty:
                     st.warning("No matches found.")
                 else:
-                    st.success(f"Top {len(ranked)} matches (hybrid score):")
-
                     for i, (_, row) in enumerate(ranked.iterrows(), start=1):
                         st.markdown("---")
                         st.markdown(
-                            f"### 🔎 Match {i}: Overall Score *{row['hybrid_score']*100:.1f}%*"
+                            f"### Match {i}: Overall Score {row['hybrid_score']*100:.1f}%"
                         )
-                        st.write(f"*Description:* {row['description']}")
-                        st.write(f"*Location:* {row['location']}")
-                        st.write(f"*Date Found:* {row['date']}")
-                        st.write(f"*Contact:* {row['contact']}")
+                        st.write(f"Description: {row['description']}")
+                        st.write(f"Location: {row['location']}")
+                        st.write(f"Date Found: {row['date']}")
+                        st.write(f"Contact: {row['contact']}")
 
                         st.caption(
-                            f"Text: {row['text_sim']*100:.1f}% | "
-                            f"Image: {row['img_sim']*100:.1f}% | "
-                            f"Location: {row['loc_score']*100:.0f}% | "
-                            f"Date: {row['date_score']*100:.0f}%"
+                            f"Text similarity: {row['text_sim']*100:.1f}%  |  "
+                            f"Image similarity: {row['img_sim']*100:.1f}%  |  "
+                            f"Location match: {row['loc_score']*100:.0f}%  |  "
+                            f"Date closeness: {row['date_score']*100:.0f}%"
                         )
 
-                        # explanation
+                        st.markdown("*Why this item is suggested:*")
                         reasons = []
                         if row["text_sim"] > 0.6:
-                            reasons.append("High overlap between your description and found item text.")
+                            reasons.append("- High overlap in keywords between your description and stored item.")
                         elif row["text_sim"] > 0.3:
-                            reasons.append("Moderate text similarity.")
-
+                            reasons.append("- Moderate text similarity with your description.")
                         if row["img_sim"] > 0.4:
-                            reasons.append("Image colour is close to the uploaded image.")
+                            reasons.append("- Colour distribution of image is similar.")
                         if row["loc_score"] > 0.5:
-                            reasons.append("Location matches or is very similar.")
+                            reasons.append("- Location is same or very similar.")
                         if row["date_score"] > 0.5:
-                            reasons.append("Found date is close to your lost date.")
+                            reasons.append("- Found date is close to the lost date.")
 
                         if not reasons:
-                            reasons.append("Suggested mainly based on text similarity and other signals.")
+                            reasons.append("- Suggested mainly by text similarity and other weak signals.")
 
-                        st.markdown("*Why this item is suggested:*")
                         for r in reasons:
-                            st.markdown(f"- {r}")
+                            st.markdown(r)
 
-                        # feedback
                         c1, c2 = st.columns(2)
                         with c1:
-                            if st.button(f"👍 Helpful (ID {row['id']})", key=f"good_{row['id']}"):
+                            if st.button(f"Helpful (ID {row['id']})", key=f"good_{row['id']}"):
                                 save_feedback(q_text, row["id"], row["hybrid_score"], True)
                                 st.success("Thanks! Marked as helpful.")
                         with c2:
-                            if st.button(f"👎 Not useful (ID {row['id']})", key=f"bad_{row['id']}"):
+                            if st.button(f"Not useful (ID {row['id']})", key=f"bad_{row['id']}"):
                                 save_feedback(q_text, row["id"], row["hybrid_score"], False)
                                 st.warning("Feedback recorded as not useful.")
 
-                    st.info(
-                        "Hybrid score combines text similarity, image colour similarity, "
-                        "location match and date closeness."
-                    )
 
+# ============== FEEDBACK PAGE ==============
 
-# ------------- FEEDBACK & LOGS -------------
+elif menu == "Feedback & Logs":
+    st.subheader("Feedback & Logs")
 
+    fb_df = load_feedback()
+    if fb_df.empty:
+        st.info("No feedback given yet.")
+    else:
+        total = len(fb_df)
+        good = (fb_df["feedback"] == "good").sum()
+        bad = (fb_df["feedback"] == "bad").sum()
+
+        st.write(f"Total feedback entries: {total}")
+        st.write(f"Marked helpful: {good}")
+        st.write(f"Marked not useful: {bad}")
+
+        if total > 0:
+            st.write(f"Overall positive rate: {(good / total) * 100:.1f}%")
+
+        st.markdown("### Raw Feedback")
+        st.dataframe(
+            fb_df.reset_index(drop=True),
+            hide_index=True,
+            use_container_width=True,
+        )
