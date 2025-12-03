@@ -61,7 +61,6 @@ def load_items() -> pd.DataFrame:
     else:
         df = pd.DataFrame(columns=ITEM_COLS)
 
-    # create missing columns
     for col in ITEM_COLS:
         if col not in df.columns:
             if col in ["img_r", "img_g", "img_b"]:
@@ -73,7 +72,6 @@ def load_items() -> pd.DataFrame:
 
     df = df[ITEM_COLS]
 
-    # types
     df["id"] = pd.to_numeric(df["id"], errors="coerce").fillna(0).astype(int)
     if (df["id"] == 0).any():
         df["id"] = range(1, len(df) + 1)
@@ -200,7 +198,6 @@ def rank_matches(df, q_text, q_loc, q_date_str, q_rgb):
     l_scores = np.array([location_score(row["location"], q_loc) for _, row in df.iterrows()])
     d_scores = np.array([date_score(row["date"], q_date_str) for _, row in df.iterrows()])
 
-    # weights (text, image, location, date)
     alpha, beta, gamma, delta = 0.6, 0.15, 0.15, 0.1
     hybrid = alpha * t_sim + beta * i_sim + gamma * l_scores + delta * d_scores
 
@@ -237,7 +234,7 @@ def add_found_item_page():
     )
     if img_file is not None:
         st.markdown("**Preview**")
-        st.image(img_file, caption="Found item image", use_column_width=True)
+        st.image(img_file, caption="Found item image", width=220)
 
     if st.button("Save Found Item"):
         if not desc.strip():
@@ -304,7 +301,7 @@ def search_lost_item_page():
     )
     if lost_img is not None:
         st.markdown("**Preview**")
-        st.image(lost_img, caption="Lost item image", use_column_width=True)
+        st.image(lost_img, caption="Lost item image", width=220)
 
     top_k = st.slider("Number of matches to display", 1, 10, 5)
 
@@ -324,7 +321,6 @@ def search_lost_item_page():
         else:
             st.markdown("### Best Matches")
             for i, (_, row) in enumerate(ranked.iterrows(), start=1):
-                # NO BOX – just plain text, but score line is bold
                 st.markdown(
                     f"**Match {i}: Overall Score {row['hybrid_score'] * 100:.1f}%**"
                 )
@@ -349,7 +345,7 @@ def search_lost_item_page():
                         append_feedback(q_text, row["id"], row["hybrid_score"], False)
                         st.warning("Marked as not useful.")
 
-                st.markdown("---")  # thin separator, not a big box
+                st.markdown("---")
 
 
 # ----------------------------------------------------
@@ -379,22 +375,3 @@ def feedback_page():
         hide_index=True,
         use_container_width=True,
     )
-
-
-# ----------------------------------------------------
-# MAIN APP
-# ----------------------------------------------------
-st.title("🏫 Campus Lost & Found with AutoMatch")
-
-# IMPORTANT: order Add → Search → Feedback
-page = st.selectbox(
-    "Choose action",
-    ["Add Found Item", "Search Lost Item", "Feedback & Logs"],
-)
-
-if page == "Add Found Item":
-    add_found_item_page()
-elif page == "Search Lost Item":
-    search_lost_item_page()
-else:
-    feedback_page()
