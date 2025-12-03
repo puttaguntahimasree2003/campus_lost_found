@@ -1,10 +1,18 @@
+# app.py
+# Campus Lost & Found – Persistent Version
+# - items saved in items.csv (never reset)
+# - images stored in /images folder
+# - add / edit / delete items
+# - feedback stored in feedback.csv
+# - text AutoMatch using TF-IDF
+# - search and feedback are separated
+
 import os
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import streamlit as st
-from PIL import Image
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -31,9 +39,10 @@ def load_items():
     if os.path.exists(ITEMS_FILE):
         df = pd.read_csv(ITEMS_FILE)
     else:
-        df = pd.DataFrame(columns=["id", "description", "location", "date", "contact", "image"])
+        df = pd.DataFrame(
+            columns=["id", "description", "location", "date", "contact", "image"]
+        )
 
-    # Make sure all required columns exist
     required_cols = ["id", "description", "location", "date", "contact", "image"]
     for col in required_cols:
         if col not in df.columns:
@@ -42,7 +51,6 @@ def load_items():
             else:
                 df[col] = ""
 
-    # force integer ids if possible
     try:
         df["id"] = df["id"].astype(int)
     except Exception:
@@ -92,7 +100,9 @@ st.title("🏫 Campus Lost & Found – AutoMatch + Feedback (Persistent)")
 # ----------------------------------------------------
 # TABS
 # ----------------------------------------------------
-tab_add, tab_manage, tab_search = st.tabs(["➕ Add Item", "📝 View / Edit / Delete", "🔍 Search & Feedback"])
+tab_add, tab_manage, tab_search, tab_feedback = st.tabs(
+    ["➕ Add Item", "📝 View / Edit / Delete", "🔍 Search Items", "⭐ Feedback"]
+)
 
 
 # ----------------------------------------------------
@@ -104,12 +114,20 @@ with tab_add:
     with st.form("add_item_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
-            description = st.text_input("Item description*", placeholder="Red water bottle with scratches...")
-            location = st.text_input("Location found*", placeholder="Girls Hostel")
+            description = st.text_input(
+                "Item description*", placeholder="Red water bottle with scratches..."
+            )
+            location = st.text_input(
+                "Location found*", placeholder="Girls Hostel"
+            )
             date_found = st.date_input("Date*", value=datetime.today())
         with col2:
-            contact = st.text_input("Contact number*", placeholder="9876543210")
-            uploaded_image = st.file_uploader("Item image (optional)", type=["png", "jpg", "jpeg"])
+            contact = st.text_input(
+                "Contact number*", placeholder="9876543210"
+            )
+            uploaded_image = st.file_uploader(
+                "Item image (optional)", type=["png", "jpg", "jpeg"]
+            )
 
         submitted = st.form_submit_button("Add item ✅")
 
@@ -117,15 +135,15 @@ with tab_add:
         if description.strip() == "" or location.strip() == "" or contact.strip() == "":
             st.error("Please fill description, location and contact.")
         else:
-            # save image if given
             image_path = ""
             if uploaded_image is not None:
-                safe_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_image.name}"
+                safe_name = (
+                    f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_image.name}"
+                )
                 image_path = os.path.join(IMAGE_DIR, safe_name)
                 with open(image_path, "wb") as f:
                     f.write(uploaded_image.getbuffer())
 
-            # generate new ID
             if items_df.empty:
                 new_id = 1
             else:
@@ -161,7 +179,15 @@ with tab_manage:
     if items_df.empty:
         st.info("No items yet. Add some from the 'Add Item' tab.")
     else:
-        st.dataframe(items_df, use_container_width=True)
+        # show only selected columns, hide index
+        cols_to_show = ["id", "description", "location", "date", "contact"]
+        existing_cols = [c for c in cols_to_show if c in items_df.columns]
+
+        st.dataframe(
+            items_df[existing_cols],
+            use_container_width=True,
+            hide_index=True,
+        )
 
         st.markdown("---")
         st.subheader("Edit or Delete an item")
@@ -173,20 +199,34 @@ with tab_manage:
 
         col1, col2 = st.columns(2)
         with col1:
-            new_desc = st.text_input("Description", row["description"], key=f"edit_desc_{selected_id}")
-            new_loc = st.text_input("Location", row["location"], key=f"edit_loc_{selected_id}")
-            new_date = st.text_input("Date (YYYY-MM-DD)", row["date"], key=f"edit_date_{selected_id}")
+            new_desc = st.text_input(
+                "Description", row["description"], key=f"edit_desc_{selected_id}"
+            )
+            new_loc = st.text_input(
+                "Location", row["location"], key=f"edit_loc_{selected_id}"
+            )
+            new_date = st.text_input(
+                "Date (YYYY-MM-DD)", row["date"], key=f"edit_date_{selected_id}"
+            )
         with col2:
-            new_contact = st.text_input("Contact", row["contact"], key=f"edit_contact_{selected_id}")
+            new_contact = st.text_input(
+                "Contact", row["contact"], key=f"edit_contact_{selected_id}"
+            )
 
             st.write("Current image:")
-            if isinstance(row["image"], str) and row["image"] != "" and os.path.exists(row["image"]):
+            if (
+                isinstance(row["image"], str)
+                and row["image"] != ""
+                and os.path.exists(row["image"])
+            ):
                 st.image(row["image"], width=150)
             else:
                 st.caption("No image")
 
             new_image_upload = st.file_uploader(
-                "Replace image (optional)", type=["png", "jpg", "jpeg"], key=f"edit_image_{selected_id}"
+                "Replace image (optional)",
+                type=["png", "jpg", "jpeg"],
+                key=f"edit_image_{selected_id}",
             )
 
         col_btn1, col_btn2 = st.columns(2)
@@ -199,9 +239,10 @@ with tab_manage:
                 st.session_state.items_df.at[idx, "date"] = new_date
                 st.session_state.items_df.at[idx, "contact"] = new_contact
 
-                # if new image uploaded, save & update path
                 if new_image_upload is not None:
-                    safe_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{new_image_upload.name}"
+                    safe_name = (
+                        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{new_image_upload.name}"
+                    )
                     new_path = os.path.join(IMAGE_DIR, safe_name)
                     with open(new_path, "wb") as f:
                         f.write(new_image_upload.getbuffer())
@@ -213,17 +254,20 @@ with tab_manage:
 
         with col_btn2:
             if st.button("🗑️ Delete item", key=f"delete_{selected_id}"):
-                st.session_state.items_df = items_df[items_df["id"] != selected_id].reset_index(drop=True)
+                st.session_state.items_df = (
+                    items_df[items_df["id"] != selected_id]
+                    .reset_index(drop=True)
+                )
                 save_items()
                 st.success(f"Item #{selected_id} deleted ❌")
                 st.rerun()
 
 
 # ----------------------------------------------------
-# TAB 3: SEARCH + FEEDBACK
+# TAB 3: SEARCH ITEMS (NO FEEDBACK HERE)
 # ----------------------------------------------------
 with tab_search:
-    st.subheader("Search items (AutoMatch) & give feedback")
+    st.subheader("Search items (AutoMatch)")
 
     items_df = st.session_state.items_df
 
@@ -233,10 +277,13 @@ with tab_search:
         query = st.text_input("Describe what you're looking for:", "")
 
         if query.strip() == "":
-            st.info("Type something to search, babes 😊")
+            st.info("Type something to search 😊")
         else:
-            # Simple TF-IDF over description + location
-            corpus = (items_df["description"].fillna("") + " " + items_df["location"].fillna("")).tolist()
+            corpus = (
+                items_df["description"].fillna("")
+                + " "
+                + items_df["location"].fillna("")
+            ).tolist()
             vectorizer = TfidfVectorizer(stop_words="english")
             try:
                 X = vectorizer.fit_transform(corpus)
@@ -245,8 +292,10 @@ with tab_search:
             except ValueError:
                 sims = np.zeros(len(items_df))
 
-            items_df["similarity"] = sims
-            results = items_df.sort_values("similarity", ascending=False).head(10)
+            # use a temp DF so similarity does NOT go into main table
+            tmp = items_df.copy()
+            tmp["similarity"] = sims
+            results = tmp.sort_values("similarity", ascending=False).head(10)
 
             if results["similarity"].max() == 0:
                 st.warning("No strong matches found, but here are some items:")
@@ -255,49 +304,68 @@ with tab_search:
 
             for _, row in results.iterrows():
                 with st.container():
-                    st.markdown(f"### 🔹 ID {int(row['id'])}: {row['description']}")
-                    st.write(f"**Location:** {row['location']}  |  **Date:** {row['date']}  |  **Contact:** {row['contact']}")
-                    st.write(f"Similarity score: {row['similarity'] * 100:.1f}%")
+                    st.markdown(
+                        f"### 🔹 ID {int(row['id'])}: {row['description']}"
+                    )
+                    st.write(
+                        f"**Location:** {row['location']}  |  **Date:** {row['date']}  |  **Contact:** {row['contact']}"
+                    )
+                    st.write(
+                        f"Similarity score: {row['similarity'] * 100:.1f}%"
+                    )
 
-                    if isinstance(row["image"], str) and row["image"] != "" and os.path.exists(row["image"]):
+                    if (
+                        isinstance(row["image"], str)
+                        and row["image"] != ""
+                        and os.path.exists(row["image"])
+                    ):
                         st.image(row["image"], width=200)
-
-                    # ---- Feedback section for this item ----
-                    st.markdown("**Feedback on this suggestion:**")
-                    fb_col1, fb_col2 = st.columns([1, 3])
-                    with fb_col1:
-                        rating = st.radio(
-                            f"Helpful? (ID {int(row['id'])})",
-                            ["Yes", "No"],
-                            key=f"fb_rating_{int(row['id'])}",
-                        )
-                    with fb_col2:
-                        comment = st.text_input(
-                            "Comment (optional)",
-                            key=f"fb_comment_{int(row['id'])}",
-                            placeholder="Why was this helpful / not helpful?",
-                        )
-
-                    if st.button("Submit feedback", key=f"fb_btn_{int(row['id'])}"):
-                        new_fb = {
-                            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "item_id": int(row["id"]),
-                            "rating": rating,
-                            "comment": comment.strip(),
-                        }
-                        st.session_state.feedback_df = pd.concat(
-                            [st.session_state.feedback_df, pd.DataFrame([new_fb])],
-                            ignore_index=True,
-                        )
-                        save_feedback()
-                        st.success("Feedback saved, thank you 💛")
 
                     st.markdown("---")
 
-        # Optional: show all feedback at bottom
-        st.markdown("### 📋 All feedback (saved in feedback.csv)")
-        if st.session_state.feedback_df.empty:
-            st.caption("No feedback yet.")
-        else:
-            st.dataframe(st.session_state.feedback_df, use_container_width=True)
 
+# ----------------------------------------------------
+# TAB 4: FEEDBACK (SEPARATE)
+# ----------------------------------------------------
+with tab_feedback:
+    st.subheader("Give feedback on suggestions")
+
+    items_df = st.session_state.items_df
+    feedback_df = st.session_state.feedback_df
+
+    if items_df.empty:
+        st.info("No items available yet to give feedback.")
+    else:
+        with st.form("feedback_form"):
+            item_ids = items_df["id"].tolist()
+            fb_item_id = st.selectbox("Select item ID", item_ids)
+            fb_rating = st.radio("Was this suggestion helpful?", ["Yes", "No"])
+            fb_comment = st.text_input(
+                "Comment (optional)",
+                placeholder="Why was this helpful / not helpful?",
+            )
+            fb_submit = st.form_submit_button("Submit feedback ✅")
+
+        if fb_submit:
+            new_fb = {
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "item_id": int(fb_item_id),
+                "rating": fb_rating,
+                "comment": fb_comment.strip(),
+            }
+            st.session_state.feedback_df = pd.concat(
+                [st.session_state.feedback_df, pd.DataFrame([new_fb])],
+                ignore_index=True,
+            )
+            save_feedback()
+            st.success("Feedback saved, thank you 💛")
+
+    st.markdown("### 📋 All feedback")
+    if st.session_state.feedback_df.empty:
+        st.caption("No feedback yet.")
+    else:
+        st.dataframe(
+            st.session_state.feedback_df,
+            use_container_width=True,
+            hide_index=True,
+        )
