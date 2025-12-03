@@ -1,3 +1,11 @@
+# app.py
+# Campus Lost & Found – Persistent Version
+# - items saved in items.csv (never reset)
+# - images stored in /images folder
+# - add / edit / delete items
+# - feedback stored in feedback.csv
+# - simple text AutoMatch using TF-IDF
+
 import os
 from datetime import datetime
 
@@ -9,430 +17,294 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 # ----------------------------------------------------
-# BASIC PAGE CONFIG + SIMPLE BORDER STYLE
+# BASIC CONFIG
 # ----------------------------------------------------
-st.set_page_config(page_title="Campus Lost & Found - AutoMatch", layout="wide")
+st.set_page_config(page_title="Campus Lost & Found", layout="wide")
 
-st.markdown(
-    """
-    <style>
-    .main {
-        background-color: #f1f5f9;
-    }
-    .block-container {
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        margin-top: 0.75rem;
-        padding: 1.3rem 1.5rem 1.5rem 1.5rem;
-        background-color: #ffffff;
-    }
-    .stButton>button {
-        border-radius: 999px;
-        padding: 0.35rem 1.2rem;
-        font-weight: 600;
-        border: none;
-        background: linear-gradient(90deg, #2563eb, #9333ea);
-        color: white;
-    }
-    .stButton>button:hover {
-        background: linear-gradient(90deg, #1d4ed8, #7e22ce);
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+ITEMS_FILE = "items.csv"
+FEEDBACK_FILE = "feedback.csv"
+IMAGE_DIR = "images"
 
-# ----------------------------------------------------
-# PATHS / CONSTANTS
-# ----------------------------------------------------
-
-# Data directory (Streamlit Cloud gives /mount/data; locally just ".")
-DATA_DIR = "/mount/data" if os.path.isdir("/mount/data") else "."
-BASE_ITEMS_FILE = "items.csv"  # seed file in repo
-ITEMS_FILE = os.path.join(DATA_DIR, "items.csv")
-FEEDBACK_FILE = os.path.join(DATA_DIR, "feedback.csv")
-
-ITEM_COLS = ["id", "description", "location", "date", "contact", "img_r", "img_g", "img_b"]
+os.makedirs(IMAGE_DIR, exist_ok=True)
 
 
 # ----------------------------------------------------
-# DATA HELPERS
+# HELPERS TO LOAD & SAVE DATA (PERSISTENT)
 # ----------------------------------------------------
-def ensure_data_dir():
-    if DATA_DIR != ".":
-        os.makedirs(DATA_DIR, exist_ok=True)
+def load_items():
+    """Load items.csv into session_state.items_df and ensure required columns exist."""
+    if "items_df" in st.session_state:
+        return
 
+    if os.path.exists(ITEMS_FILE):
+        df = pd.read_csv(ITEMS_FILE)
+    else:
+        df = pd.DataFrame(columns=["id", "description", "location", "date", "contact", "image"])
 
-def normalize_items_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Make sure all item columns exist and have correct types."""
-    df = df.copy()
-
-    for col in ITEM_COLS:
+    # Make sure all required columns exist
+    required_cols = ["id", "description", "location", "date", "contact", "image"]
+    for col in required_cols:
         if col not in df.columns:
-            if col in ["img_r", "img_g", "img_b"]:
-                df[col] = 0.0
-            elif col == "id":
-                df[col] = 0
+            if col == "id":
+                df[col] = np.arange(1, len(df) + 1)
             else:
                 df[col] = ""
 
-    df = df[ITEM_COLS]
+    # force integer ids if possible
+    try:
+        df["id"] = df["id"].astype(int)
+    except Exception:
+        pass
 
-    # id as int, 1..n if missing/0
-    df["id"] = pd.to_numeric(df["id"], errors="coerce").fillna(0).astype(int)
-    if (df["id"] == 0).any():
-        df["id"] = range(1, len(df) + 1)
-
-    # numeric image columns
-    for c in ["img_r", "img_g", "img_b"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
-
-    # string columns
-    for c in ["description", "location", "date", "contact"]:
-        df[c] = df[c].fillna("").astype(str)
-
-    # remove ".0" from contact if it came from Excel
-    df["contact"] = df["contact"].str.replace(r"\.0$", "", regex=True)
-
-    return df
+    st.session_state.items_df = df
+    st.session_state.items_df.to_csv(ITEMS_FILE, index=False)
 
 
-def load_items() -> pd.DataFrame:
-    """Load items.csv from data dir; if missing, seed from repo items.csv."""
-    ensure_data_dir()
-
-    if not os.path.exists(ITEMS_FILE):
-        # Seed from repo items.csv if present
-        if os.path.exists(BASE_ITEMS_FILE):
-            base_df = pd.read_csv(BASE_ITEMS_FILE)
-            base_df = normalize_items_df(base_df)
-            base_df.to_csv(ITEMS_FILE, index=False)
-            return base_df
-        else:
-            df = pd.DataFrame(columns=ITEM_COLS)
-            df = normalize_items_df(df)
-            df.to_csv(ITEMS_FILE, index=False)
-            return df
-
-    df = pd.read_csv(ITEMS_FILE)
-    df = normalize_items_df(df)
-    return df
-
-
-def save_items(df: pd.DataFrame) -> None:
-    """Save items back to the data CSV."""
-    ensure_data_dir()
-    df = normalize_items_df(df)
-    df.to_csv(ITEMS_FILE, index=False)
-
-
-def load_feedback() -> pd.DataFrame:
-    ensure_data_dir()
-    if os.path.exists(FEEDBACK_FILE):
-        return pd.read_csv(FEEDBACK_FILE)
-    return pd.DataFrame(columns=["lost_query", "matched_id", "score", "feedback", "timestamp"])
-
-
-def append_feedback(lost_query: str, matched_id: int, score: float, good: bool) -> None:
-    """Append one feedback row to feedback.csv."""
-    ensure_data_dir()
-    row = {
-        "lost_query": str(lost_query),
-        "matched_id": int(matched_id),
-        "score": float(score),
-        "feedback": "good" if good else "bad",
-        "timestamp": datetime.now().isoformat(timespec="seconds"),
-    }
+def load_feedback():
+    """Load feedback.csv into session_state.feedback_df."""
+    if "feedback_df" in st.session_state:
+        return
 
     if os.path.exists(FEEDBACK_FILE):
         df = pd.read_csv(FEEDBACK_FILE)
-        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     else:
-        df = pd.DataFrame([row])
+        df = pd.DataFrame(columns=["time", "item_id", "rating", "comment"])
 
-    df.to_csv(FEEDBACK_FILE, index=False)
+    st.session_state.feedback_df = df
+    st.session_state.feedback_df.to_csv(FEEDBACK_FILE, index=False)
+
+
+def save_items():
+    st.session_state.items_df.to_csv(ITEMS_FILE, index=False)
+
+
+def save_feedback():
+    st.session_state.feedback_df.to_csv(FEEDBACK_FILE, index=False)
 
 
 # ----------------------------------------------------
-# IMAGE & SIMILARITY HELPERS
+# INITIAL LOAD
 # ----------------------------------------------------
-def extract_rgb(uploaded_file):
-    """Return mean RGB of uploaded image, or (0,0,0) if none or error."""
-    if uploaded_file is None:
-        return 0.0, 0.0, 0.0
+load_items()
+load_feedback()
 
-    try:
-        img = Image.open(uploaded_file).convert("RGB")
-        img = img.resize((128, 128))
-        arr = np.array(img, dtype=float)
-        r = float(arr[:, :, 0].mean())
-        g = float(arr[:, :, 1].mean())
-        b = float(arr[:, :, 2].mean())
-        return r, g, b
-    except Exception:
-        return 0.0, 0.0, 0.0
+items_df = st.session_state.items_df
+feedback_df = st.session_state.feedback_df
+
+# ----------------------------------------------------
+# PAGE TITLE
+# ----------------------------------------------------
+st.title("🏫 Campus Lost & Found – AutoMatch + Feedback (Persistent)")
 
 
-def text_similarity_scores(query: str, df: pd.DataFrame) -> np.ndarray:
-    descriptions = df["description"].fillna("").astype(str).tolist()
-    all_texts = descriptions + [query]
-    vectorizer = TfidfVectorizer(stop_words="english")
-    tfidf = vectorizer.fit_transform(all_texts)
-    query_vec = tfidf[-1]
-    sims = cosine_similarity(query_vec, tfidf[:-1])[0]
-    return sims
+# ----------------------------------------------------
+# TABS
+# ----------------------------------------------------
+tab_add, tab_manage, tab_search = st.tabs(["➕ Add Item", "📝 View / Edit / Delete", "🔍 Search & Feedback"])
 
 
-def image_similarity_scores(q_rgb, df: pd.DataFrame) -> np.ndarray:
-    qr, qg, qb = q_rgb
-    if qr == qg == qb == 0.0:
-        return np.zeros(len(df))
+# ----------------------------------------------------
+# TAB 1: ADD ITEM
+# ----------------------------------------------------
+with tab_add:
+    st.subheader("Add a new lost / found item")
 
-    scores = []
-    for _, row in df.iterrows():
-        r, g, b = row["img_r"], row["img_g"], row["img_b"]
-        if r == g == b == 0.0:
-            scores.append(0.0)
+    with st.form("add_item_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            description = st.text_input("Item description*", placeholder="Red water bottle with scratches...")
+            location = st.text_input("Location found*", placeholder="Girls Hostel")
+            date_found = st.date_input("Date*", value=datetime.today())
+        with col2:
+            contact = st.text_input("Contact number*", placeholder="9876543210")
+            uploaded_image = st.file_uploader("Item image (optional)", type=["png", "jpg", "jpeg"])
+
+        submitted = st.form_submit_button("Add item ✅")
+
+    if submitted:
+        if description.strip() == "" or location.strip() == "" or contact.strip() == "":
+            st.error("Please fill description, location and contact.")
         else:
-            dist = np.sqrt((qr - r) ** 2 + (qg - g) ** 2 + (qb - b) ** 2)
-            scores.append(1.0 / (1.0 + dist))
-    return np.array(scores)
+            # save image if given
+            image_path = ""
+            if uploaded_image is not None:
+                safe_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_image.name}"
+                image_path = os.path.join(IMAGE_DIR, safe_name)
+                with open(image_path, "wb") as f:
+                    f.write(uploaded_image.getbuffer())
 
+            # generate new ID
+            if items_df.empty:
+                new_id = 1
+            else:
+                new_id = int(items_df["id"].max()) + 1
 
-def location_score(found_loc: str, lost_loc: str) -> float:
-    f = str(found_loc or "").strip().lower()
-    l = str(lost_loc or "").strip().lower()
-    if not f or not l:
-        return 0.0
-    if f == l or l in f or f in l:
-        return 1.0
-    if set(f.split()) & set(l.split()):
-        return 1.0
-    return 0.0
-
-
-def date_score(found_date: str, lost_date: str) -> float:
-    if not lost_date:
-        return 0.0
-    try:
-        d_found = datetime.fromisoformat(str(found_date)).date()
-        d_lost = datetime.fromisoformat(str(lost_date)).date()
-        diff = abs((d_found - d_lost).days)
-        if diff == 0:
-            return 1.0
-        if diff <= 2:
-            return 0.7
-        if diff <= 7:
-            return 0.4
-        return 0.0
-    except Exception:
-        return 0.0
-
-
-def rank_matches(df, q_text, q_loc, q_date_str, q_rgb):
-    if df.empty:
-        return df
-
-    t_sim = text_similarity_scores(q_text, df)
-    i_sim = image_similarity_scores(q_rgb, df)
-    l_scores = np.array([location_score(row["location"], q_loc) for _, row in df.iterrows()])
-    d_scores = np.array([date_score(row["date"], q_date_str) for _, row in df.iterrows()])
-
-    # weights
-    alpha, beta, gamma, delta = 0.6, 0.15, 0.15, 0.1
-    hybrid = alpha * t_sim + beta * i_sim + gamma * l_scores + delta * d_scores
-
-    df = df.copy()
-    df["text_sim"] = t_sim
-    df["img_sim"] = i_sim
-    df["loc_score"] = l_scores
-    df["date_score"] = d_scores
-    df["hybrid_score"] = hybrid
-
-    return df.sort_values("hybrid_score", ascending=False)
-
-
-# ----------------------------------------------------
-# PAGE: ADD FOUND ITEM
-# ----------------------------------------------------
-def add_found_item_page():
-    st.subheader("➕ Add Found Item")
-
-    df = load_items()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        desc = st.text_input("Found Item Description")
-        loc = st.text_input("Location Found")
-    with col2:
-        date = st.date_input("Date Found")
-        contact = st.text_input("Contact (Phone/Email)")
-
-    img_file = st.file_uploader(
-        "Upload Image of Found Item (optional)",
-        type=["jpg", "jpeg", "png"],
-        key="add_image",
-    )
-    if img_file is not None:
-        st.markdown("**Preview**")
-        st.image(img_file, caption="Found item image", width=220)
-
-    if st.button("Save Found Item"):
-        if not desc.strip():
-            st.error("Description cannot be empty.")
-        else:
-            df = load_items()  # reload latest
-            new_id = 1 if df.empty else int(df["id"].max()) + 1
-            r, g, b = extract_rgb(img_file)
             new_row = {
                 "id": new_id,
-                "description": desc,
-                "location": loc,
-                "date": str(date),
-                "contact": contact,
-                "img_r": r,
-                "img_g": g,
-                "img_b": b,
+                "description": description.strip(),
+                "location": location.strip(),
+                "date": date_found.strftime("%Y-%m-%d"),
+                "contact": contact.strip(),
+                "image": image_path,
             }
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            save_items(df)
-            st.success("Found item saved successfully ✅")
 
-    st.markdown("### Current Stored Items")
-    df = load_items()
-    if df.empty:
-        st.info("No items stored yet.")
+            st.session_state.items_df = pd.concat(
+                [st.session_state.items_df, pd.DataFrame([new_row])],
+                ignore_index=True,
+            )
+            items_df = st.session_state.items_df
+            save_items()
+
+            st.success(f"Item #{new_id} added and saved 🎉")
+
+
+# ----------------------------------------------------
+# TAB 2: VIEW / EDIT / DELETE
+# ----------------------------------------------------
+with tab_manage:
+    st.subheader("All items (persistent)")
+
+    items_df = st.session_state.items_df
+
+    if items_df.empty:
+        st.info("No items yet. Add some from the 'Add Item' tab.")
     else:
-        st.dataframe(
-            df[["id", "description", "location", "date", "contact"]].reset_index(drop=True),
-            hide_index=True,
-            use_container_width=True,
-        )
+        st.dataframe(items_df, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("Edit or Delete an item")
+
+        ids = items_df["id"].tolist()
+        selected_id = st.selectbox("Select item ID", ids)
+
+        row = items_df[items_df["id"] == selected_id].iloc[0]
+
+        col1, col2 = st.columns(2)
+        with col1:
+            new_desc = st.text_input("Description", row["description"], key=f"edit_desc_{selected_id}")
+            new_loc = st.text_input("Location", row["location"], key=f"edit_loc_{selected_id}")
+            new_date = st.text_input("Date (YYYY-MM-DD)", row["date"], key=f"edit_date_{selected_id}")
+        with col2:
+            new_contact = st.text_input("Contact", row["contact"], key=f"edit_contact_{selected_id}")
+
+            st.write("Current image:")
+            if isinstance(row["image"], str) and row["image"] != "" and os.path.exists(row["image"]):
+                st.image(row["image"], width=150)
+            else:
+                st.caption("No image")
+
+            new_image_upload = st.file_uploader(
+                "Replace image (optional)", type=["png", "jpg", "jpeg"], key=f"edit_image_{selected_id}"
+            )
+
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("💾 Save changes", key=f"save_{selected_id}"):
+                idx = items_df.index[items_df["id"] == selected_id][0]
+
+                st.session_state.items_df.at[idx, "description"] = new_desc
+                st.session_state.items_df.at[idx, "location"] = new_loc
+                st.session_state.items_df.at[idx, "date"] = new_date
+                st.session_state.items_df.at[idx, "contact"] = new_contact
+
+                # if new image uploaded, save & update path
+                if new_image_upload is not None:
+                    safe_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{new_image_upload.name}"
+                    new_path = os.path.join(IMAGE_DIR, safe_name)
+                    with open(new_path, "wb") as f:
+                        f.write(new_image_upload.getbuffer())
+                    st.session_state.items_df.at[idx, "image"] = new_path
+
+                save_items()
+                st.success("Item updated and saved ✅")
+                st.experimental_rerun()
+
+        with col_btn2:
+            if st.button("🗑️ Delete item", key=f"delete_{selected_id}"):
+                st.session_state.items_df = items_df[items_df["id"] != selected_id].reset_index(drop=True)
+                save_items()
+                st.success(f"Item #{selected_id} deleted ❌")
+                st.experimental_rerun()
 
 
 # ----------------------------------------------------
-# PAGE: SEARCH LOST ITEM
+# TAB 3: SEARCH + FEEDBACK
 # ----------------------------------------------------
-def search_lost_item_page():
-    st.subheader("🔍 Search Lost Item")
+with tab_search:
+    st.subheader("Search items (AutoMatch) & give feedback")
 
-    df = load_items()
-    if df.empty:
-        st.warning("No items stored yet. Please add found items first.")
-        return
+    items_df = st.session_state.items_df
 
-    q_text = st.text_area(
-        "Describe the lost item",
-        placeholder="Example: Blue steel water bottle with a dent on the side",
-    )
+    if items_df.empty:
+        st.info("No items to search. Add items first.")
+    else:
+        query = st.text_input("Describe what you're looking for:", "")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        q_loc = st.text_input(
-            "Approximate location lost (optional)",
-            placeholder="Library / CSE block / Canteen",
-        )
-    with col2:
-        q_date = st.date_input("Approximate date lost (optional)")
-
-    lost_img = st.file_uploader(
-        "Upload image of lost item (optional)",
-        type=["jpg", "jpeg", "png"],
-        key="lost_image",
-    )
-    if lost_img is not None:
-        st.markdown("**Preview**")
-        st.image(lost_img, caption="Lost item image", width=220)
-
-    top_k = st.slider("Number of matches to display", 1, 10, 5)
-
-    if st.button("Find Matches"):
-        if not q_text.strip():
-            st.error("Please enter a description of the lost item.")
-            return
-
-        q_r, q_g, q_b = extract_rgb(lost_img)
-        q_rgb = (q_r, q_g, q_b)
-        q_date_str = str(q_date) if q_date else ""
-
-        ranked = rank_matches(df, q_text, q_loc, q_date_str, q_rgb).head(top_k)
-
-        if ranked.empty:
-            st.warning("No matches found.")
+        if query.strip() == "":
+            st.info("Type something to search, babes 😊")
         else:
-            st.markdown("### Best Matches")
-            for i, (_, row) in enumerate(ranked.iterrows(), start=1):
-                # Bold first line
-                st.markdown(
-                    f"**Match {i}: Overall Score {row['hybrid_score'] * 100:.1f}%**"
-                )
-                st.write(f"Description: {row['description']}")
-                st.write(f"Location: {row['location']}")
-                st.write(f"Date Found: {row['date']}")
-                st.write(f"Contact: {row['contact']}")
-                st.write(
-                    f"Text: {row['text_sim'] * 100:.1f}% | "
-                    f"Image: {row['img_sim'] * 100:.1f}% | "
-                    f"Location: {row['loc_score'] * 100:.0f}% | "
-                    f"Date: {row['date_score'] * 100:.0f}%"
-                )
+            # Simple TF-IDF over description + location
+            corpus = (items_df["description"].fillna("") + " " + items_df["location"].fillna("")).tolist()
+            vectorizer = TfidfVectorizer(stop_words="english")
+            try:
+                X = vectorizer.fit_transform(corpus)
+                q_vec = vectorizer.transform([query])
+                sims = cosine_similarity(q_vec, X)[0]
+            except ValueError:
+                sims = np.zeros(len(items_df))
 
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.button(f"Helpful (ID {row['id']})", key=f"good_{row['id']}"):
-                        append_feedback(q_text, row["id"], row["hybrid_score"], True)
-                        st.success("Thanks, feedback recorded.")
-                with c2:
-                    if st.button(f"Not useful (ID {row['id']})", key=f"bad_{row['id']}"):
-                        append_feedback(q_text, row["id"], row["hybrid_score"], False)
-                        st.warning("Marked as not useful.")
+            items_df["similarity"] = sims
+            results = items_df.sort_values("similarity", ascending=False).head(10)
 
-                st.markdown("---")
+            if results["similarity"].max() == 0:
+                st.warning("No strong matches found, but here are some items:")
+            else:
+                st.success("Here are your best matches:")
 
+            for _, row in results.iterrows():
+                with st.container():
+                    st.markdown(f"### 🔹 ID {int(row['id'])}: {row['description']}")
+                    st.write(f"**Location:** {row['location']}  |  **Date:** {row['date']}  |  **Contact:** {row['contact']}")
+                    st.write(f"Similarity score: {row['similarity'] * 100:.1f}%")
 
-# ----------------------------------------------------
-# PAGE: FEEDBACK LOGS
-# ----------------------------------------------------
-def feedback_page():
-    st.subheader("📝 Feedback & Logs")
+                    if isinstance(row["image"], str) and row["image"] != "" and os.path.exists(row["image"]):
+                        st.image(row["image"], width=200)
 
-    fb = load_feedback()
-    if fb.empty:
-        st.info("No feedback given yet.")
-        return
+                    # ---- Feedback section for this item ----
+                    st.markdown("**Feedback on this suggestion:**")
+                    fb_col1, fb_col2 = st.columns([1, 3])
+                    with fb_col1:
+                        rating = st.radio(
+                            f"Helpful? (ID {int(row['id'])})",
+                            ["Yes", "No"],
+                            key=f"fb_rating_{int(row['id'])}",
+                        )
+                    with fb_col2:
+                        comment = st.text_input(
+                            "Comment (optional)",
+                            key=f"fb_comment_{int(row['id'])}",
+                            placeholder="Why was this helpful / not helpful?",
+                        )
 
-    total = len(fb)
-    good = (fb["feedback"] == "good").sum()
-    bad = (fb["feedback"] == "bad").sum()
+                    if st.button("Submit feedback", key=f"fb_btn_{int(row['id'])}"):
+                        new_fb = {
+                            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "item_id": int(row["id"]),
+                            "rating": rating,
+                            "comment": comment.strip(),
+                        }
+                        st.session_state.feedback_df = pd.concat(
+                            [st.session_state.feedback_df, pd.DataFrame([new_fb])],
+                            ignore_index=True,
+                        )
+                        save_feedback()
+                        st.success("Feedback saved, thank you 💛")
 
-    st.write(f"Total feedback entries: {total}")
-    st.write(f"Marked helpful: {good}")
-    st.write(f"Marked not useful: {bad}")
-    if total > 0:
-        st.write(f"Overall positive rate: {(good / total) * 100:.1f}%")
+                    st.markdown("---")
 
-    st.markdown("### Raw Feedback")
-    st.dataframe(
-        fb.reset_index(drop=True),
-        hide_index=True,
-        use_container_width=True,
-    )
-
-
-# ----------------------------------------------------
-# MAIN APP
-# ----------------------------------------------------
-st.title("🏫 Campus Lost & Found with AutoMatch")
-
-page = st.selectbox(
-    "Choose action",
-    ["Add Found Item", "Search Lost Item", "Feedback & Logs"],
-    index=0,
-)
-
-if page == "Add Found Item":
-    add_found_item_page()
-elif page == "Search Lost Item":
-    search_lost_item_page()
-else:
-    feedback_page()
+        # Optional: show all feedback at bottom
+        st.markdown("### 📋 All feedback (saved in feedback.csv)")
+        if st.session_state.feedback_df.empty:
+            st.caption("No feedback yet.")
+        else:
+            st.dataframe(st.session_state.feedback_df, use_container_width=True)
