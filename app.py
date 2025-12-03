@@ -129,24 +129,37 @@ if choice == "➕ Add Found Item":
     date = st.date_input("Date Found")
     contact = st.text_input("Contact")
     img = st.file_uploader("Upload Image (optional)", type=["jpg","jpeg","png"])
-    if uploaded_images:
-        img_features = extract_image_features(uploaded_image)
+    # Upload image (optional)
+uploaded_image = st.file_uploader("Upload Image (optional)", type=["jpg", "jpeg", "png"])
+
+# Process image only if uploaded
+if uploaded_image is not None:
+    img_features = extract_image_features(uploaded_image)
+else:
+    img_features = None
+
+if st.button("Save"):
+    df = load_items()
+    new_id = 1 if df.empty else df["id"].max() + 1
+    if uploaded_image is not None:
+        r, g, b = get_image_features(uploaded_image)
     else:
-        img_features = None
+        r, g, b = None, None, None
 
-    if st.button("Save"):
-        df = load_items()
-        new_id = 1 if df.empty else df["id"].max()+1
-        r,g,b = get_image_features(img)
+    new = {
+        "id": new_id,
+        "description": desc,
+        "location": loc,
+        "date": str(date),
+        "contact": contact,
+        "r": r,
+        "g": g,
+        "b": b
+    }
 
-        new = {
-            "id": new_id,
-            "description": desc,
-            "location": loc,
-            "date": str(date),
-            "contact": contact,
-            "img_r": r, "img_g": g, "img_b": b
-        }
+    df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
+    df.to_csv("items.csv", index=False)
+    st.success("Item added successfully!")
         df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
         save_items(df)
         st.success("Item saved successfully!")
@@ -192,6 +205,7 @@ else:
         st.dataframe(fb,hide_index=True)
     else:
         st.info("No feedback yet.")
+
 
 
 
