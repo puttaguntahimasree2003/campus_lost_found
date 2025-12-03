@@ -5,7 +5,8 @@
 # - add / edit / delete items
 # - feedback stored in feedback.csv
 # - text AutoMatch using TF-IDF
-# - search and feedback are separated
+# - Search tab has feedback + controls
+# - Feedback tab only shows feedback table
 
 import os
 from datetime import datetime
@@ -68,7 +69,7 @@ def load_feedback():
     if os.path.exists(FEEDBACK_FILE):
         df = pd.read_csv(FEEDBACK_FILE)
     else:
-        df = pd.DataFrame(columns=["time", "item_id", "rating", "comment"])
+        df = pd.DataFrame(columns=["time", "item_id", "rating", "comment", "query"])
 
     st.session_state.feedback_df = df
     st.session_state.feedback_df.to_csv(FEEDBACK_FILE, index=False)
@@ -101,7 +102,7 @@ st.title("🏫 Campus Lost & Found – AutoMatch + Feedback (Persistent)")
 # TABS
 # ----------------------------------------------------
 tab_add, tab_manage, tab_search, tab_feedback = st.tabs(
-    ["➕ Add Item", "📝 View / Edit / Delete", "🔍 Search Items", "⭐ Feedback"]
+    ["➕ Add Item", "📝 View / Edit / Delete", "🔍 Search & Feedback", "📋 All Feedback"]
 )
 
 
@@ -264,108 +265,146 @@ with tab_manage:
 
 
 # ----------------------------------------------------
-# TAB 3: SEARCH ITEMS (NO FEEDBACK HERE)
+# TAB 3: SEARCH + FEEDBACK (TOGETHER)
 # ----------------------------------------------------
 with tab_search:
-    st.subheader("Search items (AutoMatch)")
+    st.subheader("Search items and give feedback")
 
     items_df = st.session_state.items_df
 
     if items_df.empty:
         st.info("No items to search. Add items first.")
     else:
-        query = st.text_input("Describe what you're looking for:", "")
+        # search controls
+        query = st.text_input(
+            "Describe what you're looking for (description keywords)*", ""
+        )
+        location_filter = st.text_input(
+            "Location filter (optional)", placeholder="e.g. Girls Hostel"
+        )
+
+        max_results = min(20, len(items_df))
+        top_k = st.slider(
+            "How many suggestions do you want to see?",
+            min_value=1,
+            max_value=max_results,
+            value=min(5, max_results),
+        )
 
         if query.strip() == "":
-            st.info("Type something to search 😊")
+            st.info("Type a description to search 😊")
         else:
-            corpus = (
-                items_df["description"].fillna("")
-                + " "
-                + items_df["location"].fillna("")
-            ).tolist()
-            vectorizer = TfidfVectorizer(stop_words="english")
-            try:
-                X = vectorizer.fit_transform(corpus)
-                q_vec = vectorizer.transform([query])
-                sims = cosine_similarity(q_vec, X)[0]
-            except ValueError:
-                sims = np.zeros(len(items_df))
+            # optional location filter BEFORE similarity (so TF-IDF only on filtered set)
+            df_search = items_df.copy()
+            if location_filter.strip():
+                mask = df_search["location"].str.contains(
+                    location_filter.strip(), case=False, na=False
+                )
+                df_search = df_search[mask]
 
-            # use a temp DF so similarity does NOT go into main table
-            tmp = items_df.copy()
-            tmp["similarity"] = sims
-            results = tmp.sort_values("similarity", ascending=False).head(10)
-
-            if results["similarity"].max() == 0:
-                st.warning("No strong matches found, but here are some items:")
+            if df_search.empty:
+                st.warning("No items match this location filter.")
             else:
-                st.success("Here are your best matches:")
+                corpus = (
+                    df_search["description"].fillna("")
+                    + " "
+                    + df_search["location"].fillna("")
+                ).tolist()
+                vectorizer = TfidfVectorizer(stop_words="english")
+                try:
+                    X = vectorizer.fit_transform(corpus)
+                    q_vec = vectorizer.transform([query])
+                    sims = cosine_similarity(q_vec, X)[0]
+                except ValueError:
+                    sims = np.zeros(len(df_search))
 
-            for _, row in results.iterrows():
-                with st.container():
-                    st.markdown(
-                        f"### 🔹 ID {int(row['id'])}: {row['description']}"
-                    )
-                    st.write(
-                        f"**Location:** {row['location']}  |  **Date:** {row['date']}  |  **Contact:** {row['contact']}"
-                    )
-                    st.write(
-                        f"Similarity score: {row['similarity'] * 100:.1f}%"
-                    )
+                tmp = df_search.copy()
+                tmp["similarity"] = sims
+                results = (
+                    tmp.sort_values("similarity", ascending=False)
+                    .head(top_k)
+                    .reset_index(drop=True)
+                )
 
-                    if (
-                        isinstance(row["image"], str)
-                        and row["image"] != ""
-                        and os.path.exists(row["image"])
-                    ):
-                        st.image(row["image"], width=200)
+                if results["similarity"].max() == 0:
+                    st.warning("No strong matches found, but here are some items:")
+                else:
+                    st.success("Here are your best matches:")
 
-                    st.markdown("---")
+                for i, row in results.iterrows():
+                    item_id = int(row["id"])
+                    with st.container():
+                        st.markdown(
+                            f"### 🔹 ID {item_id}: {row['description']}"
+                        )
+                        st.write(
+                            f"**Location:** {row['location']}  |  **Date:** {row['date']}  |  **Contact:** {row['contact']}"
+                        )
+                        st.write(
+                            f"Similarity score: {row['similarity'] * 100:.1f}%"
+                        )
+
+                        if (
+                            isinstance(row["image"], str)
+                            and row["image"] != ""
+                            and os.path.exists(row["image"])
+                        ):
+                            st.image(row["image"], width=200)
+
+                        # ---- Feedback section for this item (in Search tab) ----
+                        st.markdown("**Feedback on this suggestion:**")
+                        fb_col1, fb_col2 = st.columns([1, 3])
+                        with fb_col1:
+                            rating = st.radio(
+                                f"Helpful? (ID {item_id})",
+                                ["Yes", "No"],
+                                key=f"fb_rating_{item_id}",
+                            )
+                        with fb_col2:
+                            comment = st.text_input(
+                                "Comment (optional)",
+                                key=f"fb_comment_{item_id}",
+                                placeholder="Why was this helpful / not helpful?",
+                            )
+
+                        if st.button(
+                            "Submit feedback", key=f"fb_btn_{item_id}"
+                        ):
+                            new_fb = {
+                                "time": datetime.now().strftime(
+                                    "%Y-%m-%d %H:%M:%S"
+                                ),
+                                "item_id": item_id,
+                                "rating": rating,
+                                "comment": comment.strip(),
+                                "query": query.strip(),
+                            }
+                            st.session_state.feedback_df = pd.concat(
+                                [
+                                    st.session_state.feedback_df,
+                                    pd.DataFrame([new_fb]),
+                                ],
+                                ignore_index=True,
+                            )
+                            save_feedback()
+                            st.success("Feedback saved, thank you 💛")
+
+                        st.markdown("---")
 
 
 # ----------------------------------------------------
-# TAB 4: FEEDBACK (SEPARATE)
+# TAB 4: FEEDBACK TABLE ONLY
 # ----------------------------------------------------
 with tab_feedback:
-    st.subheader("Give feedback on suggestions")
+    st.subheader("All feedback given")
 
-    items_df = st.session_state.items_df
     feedback_df = st.session_state.feedback_df
 
-    if items_df.empty:
-        st.info("No items available yet to give feedback.")
-    else:
-        with st.form("feedback_form"):
-            item_ids = items_df["id"].tolist()
-            fb_item_id = st.selectbox("Select item ID", item_ids)
-            fb_rating = st.radio("Was this suggestion helpful?", ["Yes", "No"])
-            fb_comment = st.text_input(
-                "Comment (optional)",
-                placeholder="Why was this helpful / not helpful?",
-            )
-            fb_submit = st.form_submit_button("Submit feedback ✅")
-
-        if fb_submit:
-            new_fb = {
-                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "item_id": int(fb_item_id),
-                "rating": fb_rating,
-                "comment": fb_comment.strip(),
-            }
-            st.session_state.feedback_df = pd.concat(
-                [st.session_state.feedback_df, pd.DataFrame([new_fb])],
-                ignore_index=True,
-            )
-            save_feedback()
-            st.success("Feedback saved, thank you 💛")
-
-    st.markdown("### 📋 All feedback")
-    if st.session_state.feedback_df.empty:
+    if feedback_df.empty:
         st.caption("No feedback yet.")
     else:
         st.dataframe(
-            st.session_state.feedback_df,
+            feedback_df,
             use_container_width=True,
             hide_index=True,
         )
