@@ -329,7 +329,7 @@ def search_lost_item_page():
 
         ranked = rank_matches(df, q_text, q_loc, q_date_str, q_rgb).head(top_k)
 
-                if ranked.empty:
+        if ranked.empty:
             st.warning("No matches found.")
         else:
             st.markdown("### Best Matches")
@@ -426,4 +426,5 @@ elif page == "Search Lost Item":
     search_lost_item_page()
 else:
     feedback_page()
+
 
