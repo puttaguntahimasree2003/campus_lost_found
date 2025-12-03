@@ -236,7 +236,7 @@ def add_found_item_page():
         key="add_image",
     )
     if img_file is not None:
-        st.markdown("*Preview*")
+        st.markdown("**Preview**")
         st.image(img_file, caption="Found item image", use_column_width=True)
 
     if st.button("Save Found Item"):
@@ -303,7 +303,7 @@ def search_lost_item_page():
         key="lost_image",
     )
     if lost_img is not None:
-        st.markdown("*Preview*")
+        st.markdown("**Preview**")
         st.image(lost_img, caption="Lost item image", use_column_width=True)
 
     top_k = st.slider("Number of matches to display", 1, 10, 5)
@@ -326,7 +326,7 @@ def search_lost_item_page():
             for i, (_, row) in enumerate(ranked.iterrows(), start=1):
                 # NO BOX – just plain text, but score line is bold
                 st.markdown(
-                    f"*Match {i}: Overall Score {row['hybrid_score'] * 100:.1f}%*"
+                    f"**Match {i}: Overall Score {row['hybrid_score'] * 100:.1f}%**"
                 )
                 st.write(f"Description: {row['description']}")
                 st.write(f"Location: {row['location']}")
@@ -397,4 +397,4 @@ if page == "Add Found Item":
 elif page == "Search Lost Item":
     search_lost_item_page()
 else:
-    feedback_page()
+    feedback_page()
