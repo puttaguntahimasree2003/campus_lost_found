@@ -375,3 +375,20 @@ def feedback_page():
         hide_index=True,
         use_container_width=True,
     )
+# ----------------------------------------------------
+# MAIN APP
+# ----------------------------------------------------
+st.title("🏫 Campus Lost & Found with AutoMatch")
+
+page = st.selectbox(
+    "Choose action",
+    ["Add Found Item", "Search Lost Item", "Feedback & Logs"],
+)
+
+if page == "Add Found Item":
+    add_found_item_page()
+elif page == "Search Lost Item":
+    search_lost_item_page()
+else:
+    feedback_page()
+
