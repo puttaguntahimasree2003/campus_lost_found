@@ -280,7 +280,7 @@ with tab_search:
             "Describe what you're looking for (description keywords)*", ""
         )
         location_filter = st.text_input(
-            "Location filter (optional)", placeholder="e.g. Girls Hostel"
+            "Location (optional)", placeholder="e.g. Girls Hostel"
         )
 
         max_results = min(20, len(items_df))
@@ -408,3 +408,4 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
