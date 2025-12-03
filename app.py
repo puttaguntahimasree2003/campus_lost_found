@@ -163,8 +163,23 @@ st.markdown(
 
 st.title("🏛️Campus Lost & Found with AutoMatch")
 
+col1, col2, col3 = st.columns(3)
 
-menu = st.sidebar.radio("Navigation",["Add Found Item", "Search Lost Item", "Feedback & Logs"])
+with col1:
+    if st.button("➕ Add Found Item"):
+        st.session_state["page"] = "add"
+
+with col2:
+    if st.button("🔍 Search Lost Item"):
+        st.session_state["page"] = "search"
+
+with col3:
+    if st.button("📝 Feedback"):
+        st.session_state["page"] = "feedback"
+
+# Default page
+if "page" not in st.session_state:
+    st.session_state["page"] = "search"
 
 # --------- Add page ---------
 
@@ -296,6 +311,7 @@ else:
             st.write(f"Overall positive rate: {(good / total) * 100:.1f}%")
         st.markdown("### Raw Feedback")
         st.dataframe(fb.reset_index(drop=True), hide_index=True, use_container_width=True)
+
 
 
 
