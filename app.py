@@ -189,7 +189,7 @@ def rank_matches(df: pd.DataFrame,
 
 # ---------- STYLE ----------
 
-st.set_page_config(page_title="Campus Lost & Found - AutoMatch", layout="wide")
+st.set_page_config(page_title="🏛️Campus Lost & Found with AutoMatch", layout="wide")
 
 st.markdown(
     """
@@ -212,8 +212,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("Campus Lost & Found - AutoMatch")
-st.caption("Hybrid text + image + location + date matching with feedback.")
+st.title("🏛️Campus Lost & Found with AutoMatch")
+
 
 menu = st.sidebar.radio(
      "Navigation",
@@ -369,6 +369,7 @@ elif menu == "Feedback & Logs":
             hide_index=True,
             use_container_width=True,
         )
+
 
 
 
