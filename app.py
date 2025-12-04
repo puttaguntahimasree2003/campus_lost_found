@@ -310,6 +310,7 @@ with tab_manage:
                 st.rerun()
 
 
+# TAB 3: SEARCH + FEEDBACK (TEXT + IMAGE SIMILARITY)
 # ----------------------------------------------------
 # TAB 3: SEARCH + FEEDBACK (TEXT + IMAGE SIMILARITY)
 # ----------------------------------------------------
@@ -322,11 +323,9 @@ with tab_search:
         st.info("No items to search. Add items first.")
     else:
         # search controls
-        query = st.text_input(
-            "Describe what you're looking for",placeholder="Red water bottle with scratches..."
-        )
+        query = st.text_input("Describe what you're looking for", "")
         location_filter = st.text_input(
-            "Location (optional)", placeholder="Girls Hostel"
+            "Location (optional)", placeholder="e.g. Girls Hostel"
         )
 
         max_results = min(20, len(items_df))
@@ -340,7 +339,7 @@ with tab_search:
         # checkbox to show/hide images in search results
         show_images = st.checkbox("Show item images", value=False)
 
-        # NEW: upload query image to get image similarity
+        # upload query image to get image similarity
         query_image_file = st.file_uploader(
             "Upload image to match (optional for image similarity)",
             type=["png", "jpg", "jpeg"],
@@ -358,7 +357,7 @@ with tab_search:
         if query.strip() == "":
             st.info("Type a description to search 😊")
         else:
-            # optional location filter BEFORE similarity (so TF-IDF only on filtered set)
+            # optional location filter BEFORE similarity
             df_search = items_df.copy()
             if location_filter.strip():
                 mask = df_search["location"].str.contains(
@@ -399,7 +398,6 @@ with tab_search:
                 tmp["img_sim"] = img_sims
 
                 if query_img_vec is not None:
-                    # average of text + image similarities
                     tmp["score"] = (tmp["text_sim"] + tmp["img_sim"]) / 2.0
                 else:
                     tmp["score"] = tmp["text_sim"]
@@ -418,19 +416,15 @@ with tab_search:
                 for i, row in results.iterrows():
                     item_id = int(row["id"])
                     with st.container():
-                        st.markdown(
-                            f"### 🔹 ID {item_id}: {row['description']}"
-                        )
+                        st.markdown(f"### 🔹 ID {item_id}: {row['description']}")
                         st.write(
                             f"**Location:** {row['location']}  |  **Date:** {row['date']}  |  **Contact:** {row['contact']}"
                         )
-                        # show both similarities
                         st.write(
                             f"Text similarity: {row['text_sim'] * 100:.1f}%"
                             f"  |  Image similarity: {row['img_sim'] * 100:.1f}%"
                         )
 
-                        # show image only if checkbox is ticked
                         if show_images:
                             if (
                                 isinstance(row["image"], str)
@@ -441,26 +435,32 @@ with tab_search:
 
                         # ---- Feedback section for this item (in Search tab) ----
                         st.markdown("**Feedback on this suggestion:**")
-                        fb_col1, fb_col2 = st.columns([1, 3])
-                        with fb_col1:
-                            rating = st.radio(
-                                f"Helpful? (ID {item_id})",
-                                ["Yes", "No"],
-                                key=f"fb_rating_{item_id}",
-                            )
-                        with fb_col2:
-                            comment = st.text_input(
-                                "Comment (optional)",
-                                key=f"fb_comment_{item_id}",
-                                placeholder="Why was this helpful / not helpful?",
+
+                        # 👇 each item has its own form, and it clears after submit
+                        with st.form(
+                            f"fb_form_{item_id}_{i}", clear_on_submit=True
+                        ):
+                            fb_col1, fb_col2 = st.columns([1, 3])
+                            with fb_col1:
+                                rating = st.radio(
+                                    "Helpful?",
+                                    ["Yes", "No"],
+                                    horizontal=True,
+                                )
+                            with fb_col2:
+                                comment = st.text_input(
+                                    "Comment (optional)",
+                                    placeholder="Why was this helpful / not helpful?",
+                                )
+
+                            submitted_fb = st.form_submit_button(
+                                "Submit feedback"
                             )
 
-                        if st.button(
-                            "Submit feedback", key=f"fb_btn_{item_id}"
-                        ):
+                        if submitted_fb:
                             new_fb = {
                                 "item_id": item_id,
-                                "helpful": rating,  # Yes / No
+                                "helpful": rating,
                                 "comment": comment.strip(),
                                 "time": datetime.now().strftime(
                                     "%Y-%m-%d %H:%M:%S"
@@ -474,14 +474,16 @@ with tab_search:
                                 ignore_index=True,
                             )
                             save_feedback()
+
                             msg = st.empty()
                             msg.success("Feedback saved, thank you 💛")
                             import time; time.sleep(1)
                             msg.empty()
-                            st.rerun()
-
 
                         st.markdown("---")
+
+
+
 
 
 # TAB 4: FEEDBACK TABLE ONLY
@@ -502,6 +504,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
