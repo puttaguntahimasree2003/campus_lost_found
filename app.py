@@ -284,6 +284,7 @@ with tab_manage:
 
                 save_items()
                 st.success("Item updated and saved ✅")
+                st.rerun()
                 
 
         with col_btn2:
@@ -484,6 +485,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
