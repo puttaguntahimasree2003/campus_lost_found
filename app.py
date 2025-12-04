@@ -201,7 +201,7 @@ with tab_add:
 
             msg = st.empty()
             msg.success(f"Item #{new_id} added and saved 🎉")
-            import time; time.sleep(20)
+            import time; time.sleep(1)
             msg.empty()
 
 
@@ -289,7 +289,7 @@ with tab_manage:
                 save_items()
                 msg = st.empty()
                 msg.success("Item updated and saved ✅")
-                import time; time.sleep(2)
+                import time; time.sleep(1)
                 msg.empty()
 
                 st.rerun()
@@ -302,7 +302,11 @@ with tab_manage:
                     .reset_index(drop=True)
                 )
                 save_items()
-                st.success(f"Item #{selected_id} deleted ❌")
+                msg = st.empty()
+                msg.success(f"Item #{selected_id} deleted ❌")
+                import time; time.sleep(1)
+                msg.empty()
+
                 st.rerun()
 
 
@@ -470,7 +474,12 @@ with tab_search:
                                 ignore_index=True,
                             )
                             save_feedback()
-                            st.success("Feedback saved, thank you 💛")
+                            msg = st.empty()
+                            msg.success("Feedback saved, thank you 💛")
+                            import time; time.sleep(1)
+                            msg.empty()
+                            st.rerun()
+
 
                         st.markdown("---")
 
@@ -493,6 +502,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
