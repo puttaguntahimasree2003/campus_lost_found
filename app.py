@@ -478,15 +478,10 @@ with tab_search:
                         )
                         save_feedback()
 
-                        # 🔥 bump version so ALL search widgets get new keys next run
                          st.session_state["search_version"] = search_version + 1
                          st.success("Feedback saved 💛")
-                         import time; time.sleep(2)
+
                          st.rerun()
-                
-
-
-
                     st.markdown("---")
 
 
@@ -508,6 +503,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
