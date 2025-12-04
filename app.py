@@ -340,7 +340,7 @@ with tab_search:
         description = st.text_input(
                 "Item description*", placeholder="Red water bottle with scratches..."
             )
-            location = st.text_input(
+        location = st.text_input(
                 "Location found*", placeholder="Girls Hostel"
             )
 
@@ -516,6 +516,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
