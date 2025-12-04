@@ -464,27 +464,29 @@ with tab_search:
                         submitted_fb = st.form_submit_button("Submit feedback")
 
                     # AFTER feedback submitted
-                    if submitted_fb:
-                        new_fb = {
-                            "item_id": item_id,
-                            "helpful": rating,
-                            "comment": comment.strip(),
-                            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        }
+                          # AFTER feedback submitted
+if submitted_fb:
+    new_fb = {
+        "item_id": item_id,
+        "helpful": rating,
+        "comment": comment.strip(),
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
 
-                        st.session_state.feedback_df = pd.concat(
-                            [st.session_state.feedback_df, pd.DataFrame([new_fb])],
-                            ignore_index=True,
-                        )
-                        save_feedback()
+    st.session_state.feedback_df = pd.concat(
+        [st.session_state.feedback_df, pd.DataFrame([new_fb])],
+        ignore_index=True,
+    )
+    save_feedback()
 
-                         st.session_state["search_version"] = search_version + 1
-                         st.success("Feedback saved 💛")
+    # 🔥 reset EVERYTHING by bumping version
+    st.session_state["search_version"] = search_version + 1
 
-                         st.rerun()
-                    st.markdown("---")
+    st.success("Feedback saved 💛")
+    st.rerun()
 
 
+                   
 # TAB 4: FEEDBACK TABLE ONLY
 
 with tab_feedback:
@@ -503,6 +505,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
