@@ -284,7 +284,7 @@ with tab_manage:
 
                 save_items()
                 st.success("Item updated and saved ✅")
-                st.rerun()
+                
 
         with col_btn2:
             if st.button("🗑️ Delete item", key=f"delete_{selected_id}"):
@@ -484,5 +484,6 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
