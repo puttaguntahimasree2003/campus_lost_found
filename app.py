@@ -328,16 +328,19 @@ with tab_search:
     if items_df.empty:
         st.info("No items to search. Add items first.")
     else:
+        # version number for search widgets (so we can reset them)
+        search_version = st.session_state.get("search_version", 0)
+
         # ------------ SEARCH INPUTS ------------
         search_query = st.text_input(
             "Describe what you're looking for",
-            key="search_query",
+            key=f"search_query_{search_version}",
         )
 
         search_location = st.text_input(
             "Location (optional)",
             placeholder="e.g. Girls Hostel or 205",
-            key="search_location",
+            key=f"search_location_{search_version}",
         )
 
         top_k = st.slider(
@@ -345,23 +348,23 @@ with tab_search:
             min_value=1,
             max_value=min(20, len(items_df)),
             value=5,
-            key="top_k",
+            key=f"top_k_{search_version}",
         )
 
         show_images = st.checkbox(
             "Show item images",
             value=False,
-            key="show_images",
+            key=f"show_images_{search_version}",
         )
 
-        # file uploader
+        # file uploader – key also uses version
         query_image_file = st.file_uploader(
             "Upload image to match (optional for image similarity)",
             type=["png", "jpg", "jpeg"],
-            key="search_image",
+            key=f"search_image_{search_version}",
         )
 
-        # preprocess uploaded image
+        # preprocess uploaded image (for image similarity)
         query_img_vec = None
         if query_image_file is not None:
             try:
@@ -375,20 +378,17 @@ with tab_search:
             st.info("Type a description above to search 😊")
 
         else:
-            # ------------------------------------------------
-            # NO LOCATION FILTER – search across ALL items
-            # Location is only used inside the similarity text
-            # ------------------------------------------------
+            # NO location filter – search across all items
             df_search = items_df.copy().reset_index(drop=True)
 
-            # Build corpus: description + location (same as before)
+            # text we compare against: description + location
             corpus = (
                 df_search["description"].fillna("")
                 + " "
                 + df_search["location"].fillna("")
             ).tolist()
 
-            # Build query text = description + optional location words
+            # query text = description + optional location words
             query_text = (search_query or "").strip()
             if (search_location or "").strip() != "":
                 query_text = query_text + " " + search_location.strip()
@@ -401,7 +401,7 @@ with tab_search:
             except Exception:
                 text_sims = np.zeros(len(df_search))
 
-            # ------------- IMAGE SIMILARITY -------------
+            # ---------- IMAGE SIMILARITY ----------
             img_sims = np.zeros(len(df_search))
             if query_img_vec is not None:
                 for i_row, img_path in enumerate(df_search["image"].tolist()):
@@ -409,7 +409,7 @@ with tab_search:
                         query_img_vec, img_path
                     )
 
-            # ------------- SCORE MIXING -------------
+            # ---------- FINAL SCORE ----------
             tmp = df_search.copy()
             tmp["text_sim"] = text_sims
             tmp["img_sim"] = img_sims
@@ -478,22 +478,13 @@ with tab_search:
                         )
                         save_feedback()
 
-                        # 🔥 CLEAR EVERYTHING ON SEARCH TAB
-                        for key in [
-                            "search_query",
-                            "search_location",
-                            "show_images",
-                            "top_k",
-                            "search_image",
-                        ]:
-                            if key in st.session_state:
-                                del st.session_state[key]
+                        # 🔥 bump version so ALL search widgets get new keys next run
+                        st.session_state["search_version"] = search_version + 1
 
                         st.success("Feedback saved 💛")
                         st.rerun()
 
                     st.markdown("---")
-
 
 
 # TAB 4: FEEDBACK TABLE ONLY
@@ -514,6 +505,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
