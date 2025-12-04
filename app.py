@@ -474,6 +474,10 @@ with tab_search:
                                 ignore_index=True,
                             )
                             save_feedback()
+                            st.session_state.search_query = ""
+                            st.session_state.search_location = ""
+                            st.session_state.search_query_image = None
+                            st.session_state.show_images = False
 
                             msg = st.empty()
                             msg.success("Feedback saved, thank you 💛")
@@ -504,6 +508,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
