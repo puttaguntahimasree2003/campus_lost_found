@@ -337,16 +337,12 @@ with tab_search:
             st.session_state.reset_search = False
 
         # ------------ SEARCH INPUTS ------------
-        search_query = st.text_input(
-            "Item description*", placeholder="Red water bottle with scratches..."
-            key="search_query",
-        )
-
-        search_location = st.text_input(
-            "Location (optional)",
-            placeholder="e.g. Girls Hostel",
-            key="search_location",
-        )
+        description = st.text_input(
+                "Item description*", placeholder="Red water bottle with scratches..."
+            )
+            location = st.text_input(
+                "Location found*", placeholder="Girls Hostel"
+            )
 
         top_k = st.slider(
             "How many suggestions do you want?",
@@ -520,6 +516,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
