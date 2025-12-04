@@ -313,200 +313,6 @@ with tab_manage:
 
                 st.rerun()
 
-# ----------------------------------------------------
-# TAB 3: SEARCH + FEEDBACK (TEXT + IMAGE SIMILARITY)
-# ----------------------------------------------------
-with tab_search:
-    st.subheader("Search items and give feedback")
-
-    items_df = st.session_state.items_df
-
-    if items_df.empty:
-        st.info("No items to search. Add items first.")
-    else:
-
-        # ------ SEARCH CONTROLS ------
-        col_a, col_b, col_c = st.columns([2, 2, 1])
-
-        with col_a:
-            search_query = st.text_input(
-                "Describe what you're looking for",
-                key="search_query"
-            )
-
-        with col_b:
-            search_location = st.text_input(
-                "Location (optional)",
-                placeholder="e.g. Girls Hostel",
-                key="search_location"
-            )
-
-        with col_c:
-            if st.button("Clear search"):
-                st.session_state.search_query = ""
-                st.session_state.search_location = ""
-                st.session_state.show_images = False
-                st.session_state.clear_image += 1   # reset image uploader
-                st.rerun()
-
-        max_results = min(20, len(items_df))
-        top_k = st.slider(
-            "How many suggestions do you want to see?",
-            min_value=1,
-            max_value=max_results,
-            value=min(5, max_results),
-            key="top_k",
-        )
-
-        show_images = st.checkbox(
-            "Show item images", value=False, key="show_images"
-        )
-
-        # SAFE file_uploader (dynamic key)
-        query_image_file = st.file_uploader(
-            "Upload image to match (optional for image similarity)",
-            type=["png", "jpg", "jpeg"],
-            key=f"search_query_image_{st.session_state.clear_image}",
-        )
-
-        query_img_vec = None
-        if query_image_file is not None:
-            try:
-                q_img = Image.open(query_image_file)
-                query_img_vec = preprocess_image(q_img)
-            except Exception:
-                st.warning("Couldn't read uploaded image.")
-
-        # -------- WHEN NO SEARCH ENTERED --------
-        if (search_query or "").strip() == "":
-            st.info("Type something to search 📦")
-        else:
-            df_search = items_df.copy()
-
-            # location filter
-            if (search_location or "").strip() != "":
-                mask = df_search["location"].str.contains(
-                    search_location.strip(), case=False, na=False
-                )
-                df_search = df_search[mask]
-
-            if df_search.empty:
-                st.warning("No items under this location.")
-            else:
-                df_search = df_search.reset_index(drop=True)
-
-                # ---- TEXT SIMILARITY ----
-                corpus = (
-                    df_search["description"].fillna("")
-                    + " "
-                    + df_search["location"].fillna("")
-                ).tolist()
-
-                vectorizer = TfidfVectorizer(stop_words="english")
-                try:
-                    X = vectorizer.fit_transform(corpus)
-                    q_vec = vectorizer.transform([search_query])
-                    text_sims = cosine_similarity(q_vec, X)[0]
-                except:
-                    text_sims = np.zeros(len(df_search))
-
-                # ---- IMAGE SIMILARITY ----
-                img_sims = np.zeros(len(df_search))
-                if query_img_vec is not None:
-                    for i_row, img_path in enumerate(df_search["image"].tolist()):
-                        img_sims[i_row] = compute_image_similarity(query_img_vec, img_path)
-
-                # ---- FINAL SCORE ----
-                tmp = df_search.copy()
-                tmp["text_sim"] = text_sims
-                tmp["img_sim"] = img_sims
-
-                if query_img_vec is not None:
-                    tmp["score"] = (tmp["text_sim"] + tmp["img_sim"]) / 2
-                else:
-                    tmp["score"] = tmp["text_sim"]
-
-                results = (
-                    tmp.sort_values("score", ascending=False)
-                    .head(top_k)
-                    .reset_index(drop=True)
-                )
-
-                if results["score"].max() == 0:
-                    st.warning("No strong matches, but here are the closest ones:")
-                else:
-                    st.success("Best matches below 👇")
-
-                # ===== DISPLAY RESULTS =====
-                for i, row in results.iterrows():
-                    item_id = int(row["id"])
-
-                    with st.container():
-                        st.markdown(f"### 🔹 ID {item_id}: {row['description']}")
-                        st.write(
-                            f"**Location:** {row['location']} | "
-                            f"**Date:** {row['date']} | "
-                            f"**Contact:** {row['contact']}"
-                        )
-
-                        st.write(
-                            f"Text similarity: {row['text_sim']*100:.1f}% | "
-                            f"Image similarity: {row['img_sim']*100:.1f}%"
-                        )
-
-                        if show_images and isinstance(row["image"], str) and os.path.exists(row["image"]):
-                            st.image(row["image"], width=200)
-
-                        # ===== FEEDBACK FORM =====
-                        st.markdown("**Give feedback for this suggestion:**")
-
-                        with st.form(f"fb_form_{item_id}_{i}", clear_on_submit=True):
-                            col1, col2 = st.columns([1, 3])
-
-                            with col1:
-                                rating = st.radio(
-                                    "Helpful?",
-                                    ["Yes", "No"],
-                                    horizontal=True,
-                                )
-
-                            with col2:
-                                comment = st.text_input(
-                                    "Comment (optional)",
-                                    placeholder="Why helpful / not helpful?",
-                                )
-
-                            submitted_fb = st.form_submit_button("Submit feedback")
-
-                        if submitted_fb:
-                            # save feedback
-                            new_fb = {
-                                "item_id": item_id,
-                                "helpful": rating,
-                                "comment": comment.strip(),
-                                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            }
-
-                            st.session_state.feedback_df = pd.concat(
-                                [st.session_state.feedback_df, pd.DataFrame([new_fb])],
-                                ignore_index=True,
-                            )
-                            save_feedback()
-
-                            # ---- CLEAR SEARCH AFTER FEEDBACK ----
-                            st.session_state.search_query = ""
-                            st.session_state.search_location = ""
-                            st.session_state.show_images = False
-
-                            # reset file uploader
-                            st.session_state.clear_image += 1
-
-                            st.success("Feedback saved 💛")
-                            st.rerun()
-
-                        st.markdown("---")
-
-
 
 # TAB 4: FEEDBACK TABLE ONLY
 
@@ -524,8 +330,193 @@ with tab_feedback:
         st.dataframe(
             feedback_df[existing],
             use_container_width=True,
+            
+            
+# ----------------------------------------------------
+# TAB 3: SEARCH + FEEDBACK (TEXT + IMAGE SIMILARITY)
+# ----------------------------------------------------
+with tab_search:
+    st.subheader("Search items and give feedback")
+
+    items_df = st.session_state.items_df
+
+    # SAFELY create counter for file_uploader reset
+    if "clear_image" not in st.session_state:
+        st.session_state.clear_image = 0
+
+    if items_df.empty:
+        st.info("No items to search. Add items first.")
+    else:
+
+        # ------------ SEARCH INPUTS ------------
+        search_query = st.text_input(
+            "Describe what you're looking for",
+            key="search_query",
+        )
+
+        search_location = st.text_input(
+            "Location (optional)",
+            placeholder="e.g. Girls Hostel",
+            key="search_location",
+        )
+
+        top_k = st.slider(
+            "How many suggestions do you want?",
+            min_value=1,
+            max_value=min(20, len(items_df)),
+            value=5,
+            key="top_k",
+        )
+
+        show_images = st.checkbox(
+            "Show item images",
+            value=False,
+            key="show_images"
+        )
+
+        # dynamic key so file uploader gets reset
+        query_image_file = st.file_uploader(
+            "Upload image to match (optional for image similarity)",
+            type=["png", "jpg", "jpeg"],
+            key=f"query_img_{st.session_state.clear_image}",
+        )
+
+        # preprocess uploaded image
+        query_img_vec = None
+        if query_image_file is not None:
+            try:
+                qimg = Image.open(query_image_file)
+                query_img_vec = preprocess_image(qimg)
+            except:
+                st.warning("Couldn't read uploaded image.")
+
+        # If no search query
+        if (search_query or "").strip() == "":
+            st.info("Type a description above to search 😊")
+
+        else:
+            # ------------- FILTER BY LOCATION -------------
+            df_search = items_df.copy()
+
+            if (search_location or "").strip() != "":
+                mask = df_search["location"].str.contains(
+                    search_location.strip(), case=False, na=False
+                )
+                df_search = df_search[mask]
+
+            if df_search.empty:
+                st.warning("No items found for this location.")
+            else:
+                df_search = df_search.reset_index(drop=True)
+
+                # ------------- TEXT SIMILARITY -------------
+                corpus = (
+                    df_search["description"].fillna("")
+                    + " "
+                    + df_search["location"].fillna("")
+                ).tolist()
+
+                vectorizer = TfidfVectorizer(stop_words="english")
+                try:
+                    X = vectorizer.fit_transform(corpus)
+                    q_vec = vectorizer.transform([search_query])
+                    text_sims = cosine_similarity(q_vec, X)[0]
+                except:
+                    text_sims = np.zeros(len(df_search))
+
+                # ------------- IMAGE SIMILARITY -------------
+                img_sims = np.zeros(len(df_search))
+                if query_img_vec is not None:
+                    for i_row, img_path in enumerate(df_search["image"].tolist()):
+                        img_sims[i_row] = compute_image_similarity(
+                            query_img_vec, img_path
+                        )
+
+                # ------------- SCORE MIXING -------------
+                tmp = df_search.copy()
+                tmp["text_sim"] = text_sims
+                tmp["img_sim"] = img_sims
+                tmp["score"] = (
+                    (tmp["text_sim"] + tmp["img_sim"]) / 2
+                    if query_img_vec is not None
+                    else tmp["text_sim"]
+                )
+
+                results = (
+                    tmp.sort_values("score", ascending=False)
+                    .head(top_k)
+                    .reset_index(drop=True)
+                )
+
+                st.success("Best matches below 👇")
+
+                # ------------- SHOW RESULTS -------------
+                for i, row in results.iterrows():
+                    item_id = int(row["id"])
+
+                    with st.container():
+                        st.markdown(f"### 🔹 ID {item_id}: {row['description']}")
+                        st.write(
+                            f"**Location:** {row['location']} | "
+                            f"**Date:** {row['date']} | "
+                            f"**Contact:** {row['contact']}"
+                        )
+                        st.write(
+                            f"Text sim: {row['text_sim']*100:.1f}% | "
+                            f"Image sim: {row['img_sim']*100:.1f}%"
+                        )
+
+                        if show_images and isinstance(row["image"], str) and os.path.exists(row["image"]):
+                            st.image(row["image"], width=200)
+
+                        # ============= FEEDBACK FORM =============
+                        with st.form(f"fb_form_{item_id}_{i}", clear_on_submit=True):
+                            c1, c2 = st.columns([1, 3])
+                            with c1:
+                                rating = st.radio(
+                                    "Helpful?",
+                                    ["Yes", "No"],
+                                    horizontal=True,
+                                )
+                            with c2:
+                                comment = st.text_input(
+                                    "Comment (optional)",
+                                    placeholder="Why helpful / not helpful?",
+                                )
+
+                            submitted_fb = st.form_submit_button("Submit feedback")
+
+                        # AFTER feedback submitted
+                        if submitted_fb:
+                            new_fb = {
+                                "item_id": item_id,
+                                "helpful": rating,
+                                "comment": comment.strip(),
+                                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            }
+
+                            st.session_state.feedback_df = pd.concat(
+                                [st.session_state.feedback_df, pd.DataFrame([new_fb])],
+                                ignore_index=True,
+                            )
+                            save_feedback()
+
+                            # ------------- RESET SEARCH FIELDS -------------
+                            st.session_state.search_query = ""
+                            st.session_state.search_location = ""
+                            st.session_state.show_images = False
+
+                            # reset file uploader safely
+                            st.session_state.clear_image += 1
+
+                            st.success("Feedback saved 💛")
+                            st.rerun()
+
+                        st.markdown("---")
+
             hide_index=True,
         )
+
 
 
 
