@@ -316,6 +316,7 @@ with tab_manage:
                 msg.empty()
 
                 st.rerun()
+
 # ----------------------------------------------------
 # TAB 3: SEARCH + FEEDBACK (TEXT + IMAGE SIMILARITY)
 # ----------------------------------------------------
@@ -327,22 +328,17 @@ with tab_search:
     if items_df.empty:
         st.info("No items to search. Add items first.")
     else:
-        # ---- handle reset from previous run (BEFORE widgets) ----
-        if st.session_state.reset_search:
-            st.session_state.search_query = ""
-            st.session_state.search_location = ""
-            st.session_state.show_images = False
-            # file uploader will reset because we change the key later
-            st.session_state.clear_image += 1
-            st.session_state.reset_search = False
-
         # ------------ SEARCH INPUTS ------------
-        description = st.text_input(
-                "Item description*", placeholder="Red water bottle with scratches..."
-            )
-        location = st.text_input(
-                "Location found*", placeholder="Girls Hostel"
-            )
+        search_query = st.text_input(
+            "Describe what you're looking for",
+            key="search_query",
+        )
+
+        search_location = st.text_input(
+            "Location (optional)",
+            placeholder="e.g. Girls Hostel",
+            key="search_location",
+        )
 
         top_k = st.slider(
             "How many suggestions do you want?",
@@ -358,11 +354,11 @@ with tab_search:
             key="show_images",
         )
 
-        # dynamic key so file_uploader can be cleared safely
+        # file uploader with a fixed key
         query_image_file = st.file_uploader(
             "Upload image to match (optional for image similarity)",
             type=["png", "jpg", "jpeg"],
-            key=f"query_img_{st.session_state.clear_image}",
+            key="search_image",
         )
 
         # preprocess uploaded image
@@ -485,17 +481,22 @@ with tab_search:
                             )
                             save_feedback()
 
-                            # 👇 tell next run to clear search widgets
-                            st.session_state.reset_search = True
+                            # 🔥 CLEAR EVERYTHING ON SEARCH TAB
+                            for key in [
+                                "search_query",
+                                "search_location",
+                                "show_images",
+                                "top_k",
+                                "search_image",
+                            ]:
+                                if key in st.session_state:
+                                    del st.session_state[key]
 
-                            
-                            msg = st.empty()
-                            msg.success("Feedback saved 💛")
-                            import time; time.sleep(2)
-                            msg.empty()
+                            st.success("Feedback saved 💛")
                             st.rerun()
 
                         st.markdown("---")
+
 
 
 # TAB 4: FEEDBACK TABLE ONLY
@@ -516,6 +517,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
