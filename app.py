@@ -116,19 +116,6 @@ def compute_image_similarity(query_vec: np.ndarray, image_path: str) -> float:
         return 0.0
 
 
-def safe_str(x):
-    """Convert any value/NaN to a nice clean string for text_input."""
-    if x is None:
-        return ""
-    try:
-        # handle pandas NaN
-        if isinstance(x, float) and np.isnan(x):
-            return ""
-    except Exception:
-        pass
-    return str(x)
-
-
 # ----------------------------------------------------
 # INITIAL LOAD
 # ----------------------------------------------------
@@ -217,7 +204,6 @@ with tab_add:
 
 # ----------------------------------------------------
 # TAB 2: VIEW / EDIT / DELETE
-#  (uses session_state so fields follow selected ID, now safe strings)
 # ----------------------------------------------------
 with tab_manage:
     st.subheader("All items")
@@ -245,28 +231,20 @@ with tab_manage:
 
         row = items_df[items_df["id"] == selected_id].iloc[0]
 
-        # manage edit state so fields change when ID changes
-        if "last_selected_id" not in st.session_state or st.session_state.last_selected_id != selected_id:
-            st.session_state.edit_desc = safe_str(row["description"])
-            st.session_state.edit_loc = safe_str(row["location"])
-            st.session_state.edit_date = safe_str(row["date"])
-            st.session_state.edit_contact = safe_str(row["contact"])
-            st.session_state.last_selected_id = selected_id
-
         col1, col2 = st.columns(2)
         with col1:
             new_desc = st.text_input(
-                "Description", value=st.session_state.edit_desc, key="edit_desc"
+                "Description", row["description"], key=f"edit_desc_{selected_id}"
             )
             new_loc = st.text_input(
-                "Location", value=st.session_state.edit_loc, key="edit_loc"
+                "Location", row["location"], key=f"edit_loc_{selected_id}"
             )
             new_date = st.text_input(
-                "Date (YYYY-MM-DD)", value=st.session_state.edit_date, key="edit_date"
+                "Date (YYYY-MM-DD)", row["date"], key=f"edit_date_{selected_id}"
             )
         with col2:
             new_contact = st.text_input(
-                "Contact", value=st.session_state.edit_contact, key="edit_contact"
+                "Contact", row["contact"], key=f"edit_contact_{selected_id}"
             )
 
             st.write("Current image:")
@@ -294,12 +272,6 @@ with tab_manage:
                 st.session_state.items_df.at[idx, "location"] = new_loc
                 st.session_state.items_df.at[idx, "date"] = new_date
                 st.session_state.items_df.at[idx, "contact"] = new_contact
-
-                # keep edit state synced
-                st.session_state.edit_desc = new_desc
-                st.session_state.edit_loc = new_loc
-                st.session_state.edit_date = new_date
-                st.session_state.edit_contact = new_contact
 
                 if new_image_upload is not None:
                     safe_name = (
@@ -338,10 +310,10 @@ with tab_search:
     else:
         # search controls
         query = st.text_input(
-            "Describe what you're looking for", ""
+            "Describe what you're looking for",placeholder="Red water bottle with scratches...""
         )
         location_filter = st.text_input(
-            "Location (optional)", placeholder="e.g. Girls Hostel"
+            "Location (optional)", placeholder="Girls Hostel"
         )
 
         max_results = min(20, len(items_df))
@@ -457,19 +429,16 @@ with tab_search:
                         # ---- Feedback section for this item (in Search tab) ----
                         st.markdown("**Feedback on this suggestion:**")
                         fb_col1, fb_col2 = st.columns([1, 3])
-                        rating_key = f"fb_rating_{item_id}"
-                        comment_key = f"fb_comment_{item_id}"
-
                         with fb_col1:
                             rating = st.radio(
                                 f"Helpful? (ID {item_id})",
                                 ["Yes", "No"],
-                                key=rating_key,
+                                key=f"fb_rating_{item_id}",
                             )
                         with fb_col2:
                             comment = st.text_input(
                                 "Comment (optional)",
-                                key=comment_key,
+                                key=f"fb_comment_{item_id}",
                                 placeholder="Why was this helpful / not helpful?",
                             )
 
@@ -492,9 +461,6 @@ with tab_search:
                                 ignore_index=True,
                             )
                             save_feedback()
-                            # clear this comment field after submit
-                            st.session_state[comment_key] = ""
-
                             st.success("Feedback saved, thank you 💛")
 
                         st.markdown("---")
@@ -518,3 +484,4 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
