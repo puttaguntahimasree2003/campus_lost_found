@@ -283,7 +283,7 @@ with tab_manage:
                     st.session_state.items_df.at[idx, "image"] = new_path
 
                 save_items()
-                st.success("Item updated and saved ✅", icon="🎉", duration=3)
+                st.toast("Item updated and saved ✅", icon="🎉", duration=3)
                 st.rerun()
                 
 
@@ -485,6 +485,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
