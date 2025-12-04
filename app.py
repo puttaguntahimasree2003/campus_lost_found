@@ -331,7 +331,8 @@ with tab_search:
 
         # ------------ SEARCH INPUTS ------------
         search_query = st.text_input(
-            "Describe what you're looking for*",placeholder="Red water bottle with scratches..."
+            "Describe what you're looking for*", placeholder="Red water bottle with scratches..."
+            
             key="search_query",
         )
 
@@ -513,6 +514,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
