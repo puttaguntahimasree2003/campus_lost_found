@@ -313,25 +313,6 @@ with tab_manage:
 
                 st.rerun()
 
-
-# TAB 4: FEEDBACK TABLE ONLY
-
-with tab_feedback:
-    st.subheader("All feedback given")
-
-    feedback_df = st.session_state.feedback_df
-
-    if feedback_df.empty:
-        st.caption("No feedback yet.")
-    else:
-        # show only item_id, helpful, comment, time in order
-        cols = ["item_id", "helpful", "comment", "time"]
-        existing = [c for c in cols if c in feedback_df.columns]
-        st.dataframe(
-            feedback_df[existing],
-            use_container_width=True,
-            
-            
 # ----------------------------------------------------
 # TAB 3: SEARCH + FEEDBACK (TEXT + IMAGE SIMILARITY)
 # ----------------------------------------------------
@@ -514,8 +495,25 @@ with tab_search:
 
                         st.markdown("---")
 
+# TAB 4: FEEDBACK TABLE ONLY
+
+with tab_feedback:
+    st.subheader("All feedback given")
+
+    feedback_df = st.session_state.feedback_df
+
+    if feedback_df.empty:
+        st.caption("No feedback yet.")
+    else:
+        # show only item_id, helpful, comment, time in order
+        cols = ["item_id", "helpful", "comment", "time"]
+        existing = [c for c in cols if c in feedback_df.columns]
+        st.dataframe(
+            feedback_df[existing],
+            use_container_width=True,
             hide_index=True,
         )
+
 
 
 
