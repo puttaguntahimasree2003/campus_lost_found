@@ -330,11 +330,9 @@ with tab_search:
     else:
 
         # ------------ SEARCH INPUTS ------------
-        search_query = st.text_input(
-            "Describe what you're looking for*", placeholder="Red water bottle with scratches..."
-            
-            key="search_query",
-        )
+        description = st.text_input(
+                "Item description*", placeholder="Red water bottle with scratches..."
+            )
 
         search_location = st.text_input(
             "Location (optional)",
@@ -514,6 +512,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
