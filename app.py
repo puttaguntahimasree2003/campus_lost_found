@@ -316,7 +316,6 @@ with tab_manage:
                 msg.empty()
 
                 st.rerun()
-
 # ----------------------------------------------------
 # TAB 3: SEARCH + FEEDBACK (TEXT + IMAGE SIMILARITY)
 # ----------------------------------------------------
@@ -328,18 +327,19 @@ with tab_search:
     if items_df.empty:
         st.info("No items to search. Add items first.")
     else:
-        # version number for search widgets (so we can reset them)
+        # version number for resetting search widgets
         search_version = st.session_state.get("search_version", 0)
 
         # ------------ SEARCH INPUTS ------------
         search_query = st.text_input(
-            "Describe what you're looking for", 
+            "Describe what you're looking for",
             placeholder="Red water bottle with scratches...",
             key=f"search_query_{search_version}",
         )
+
         search_location = st.text_input(
             "Location (optional)",
-            placeholder="C Block ",
+            placeholder="C Block",
             key=f"search_location_{search_version}",
         )
 
@@ -357,14 +357,13 @@ with tab_search:
             key=f"show_images_{search_version}",
         )
 
-        # file uploader – key also uses version
         query_image_file = st.file_uploader(
             "Upload image to match (optional for image similarity)",
             type=["png", "jpg", "jpeg"],
             key=f"search_image_{search_version}",
         )
 
-        # preprocess uploaded image (for image similarity)
+        # --------- PROCESS QUERY IMAGE ----------
         query_img_vec = None
         if query_image_file is not None:
             try:
@@ -373,26 +372,26 @@ with tab_search:
             except Exception:
                 st.warning("Couldn't read uploaded image.")
 
-        # If no search query
+        # --------- IF SEARCH QUERY EMPTY ----------
         if (search_query or "").strip() == "":
             st.info("Type a description above to search 😊")
 
         else:
-            # NO location filter – search across all items
+            # --------- SEARCH ACROSS ALL ITEMS ----------
             df_search = items_df.copy().reset_index(drop=True)
 
-            # text we compare against: description + location
             corpus = (
                 df_search["description"].fillna("")
                 + " "
                 + df_search["location"].fillna("")
             ).tolist()
 
-            # query text = description + optional location words
+            # build combined query
             query_text = (search_query or "").strip()
             if (search_location or "").strip() != "":
-                query_text = query_text + " " + search_location.strip()
+                query_text += " " + search_location.strip()
 
+            # TEXT SIMILARITY
             vectorizer = TfidfVectorizer(stop_words="english")
             try:
                 X = vectorizer.fit_transform(corpus)
@@ -401,7 +400,7 @@ with tab_search:
             except Exception:
                 text_sims = np.zeros(len(df_search))
 
-            # ---------- IMAGE SIMILARITY ----------
+            # IMAGE SIMILARITY
             img_sims = np.zeros(len(df_search))
             if query_img_vec is not None:
                 for i_row, img_path in enumerate(df_search["image"].tolist()):
@@ -409,7 +408,7 @@ with tab_search:
                         query_img_vec, img_path
                     )
 
-            # ---------- FINAL SCORE ----------
+            # FINAL SCORE
             tmp = df_search.copy()
             tmp["text_sim"] = text_sims
             tmp["img_sim"] = img_sims
@@ -427,7 +426,7 @@ with tab_search:
 
             st.success("Best matches below 👇")
 
-            # ------------- SHOW RESULTS -------------
+            # --------- DISPLAY RESULTS ----------
             for i, row in results.iterrows():
                 item_id = int(row["id"])
 
@@ -446,7 +445,7 @@ with tab_search:
                     if show_images and isinstance(row["image"], str) and os.path.exists(row["image"]):
                         st.image(row["image"], width=200)
 
-                    # ============= FEEDBACK FORM =============
+                    # --------- FEEDBACK FORM ----------
                     with st.form(f"fb_form_{item_id}_{i}", clear_on_submit=True):
                         c1, c2 = st.columns([1, 3])
                         with c1:
@@ -463,29 +462,32 @@ with tab_search:
 
                         submitted_fb = st.form_submit_button("Submit feedback")
 
-                    # AFTER feedback submitted
-                          # AFTER feedback submitted
-if submitted_fb:
-    new_fb = {
-        "item_id": item_id,
-        "helpful": rating,
-        "comment": comment.strip(),
-        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    }
+                    # --------- SAVE FEEDBACK ----------
+                    if submitted_fb:
+                        new_fb = {
+                            "item_id": item_id,
+                            "helpful": rating,
+                            "comment": comment.strip(),
+                            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        }
 
-    st.session_state.feedback_df = pd.concat(
-        [st.session_state.feedback_df, pd.DataFrame([new_fb])],
-        ignore_index=True,
-    )
-    save_feedback()
+                        st.session_state.feedback_df = pd.concat(
+                            [st.session_state.feedback_df, pd.DataFrame([new_fb])],
+                            ignore_index=True,
+                        )
+                        save_feedback()
 
-    # 🔥 reset EVERYTHING by bumping version
-    st.session_state["search_version"] = search_version + 1
+                        # RESET EVERYTHING by bumping version
+                        st.session_state["search_version"] = search_version + 1
 
-    st.success("Feedback saved 💛")
-    st.rerun()
+                        st.success("Feedback saved 💛")
+                        st.rerun()
+
+                    st.markdown("---")
 
 
+
+            
                    
 # TAB 4: FEEDBACK TABLE ONLY
 
@@ -505,6 +507,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
