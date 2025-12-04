@@ -333,13 +333,14 @@ with tab_search:
 
         # ------------ SEARCH INPUTS ------------
         search_query = st.text_input(
-            "Describe what you're looking for",
+            "Describe what you're looking for", placeholder="Red water bottle with scratches..."
+            )
             key=f"search_query_{search_version}",
         )
 
         search_location = st.text_input(
             "Location (optional)",
-            placeholder="e.g. Girls Hostel or 205",
+            placeholder="C Block ",
             key=f"search_location_{search_version}",
         )
 
@@ -505,6 +506,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
