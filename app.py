@@ -338,7 +338,7 @@ with tab_search:
 
         # ------------ SEARCH INPUTS ------------
         search_query = st.text_input(
-            "Describe what you're looking for",
+            "Item description*", placeholder="Red water bottle with scratches..."
             key="search_query",
         )
 
@@ -495,7 +495,7 @@ with tab_search:
                             
                             msg = st.empty()
                             msg.success("Feedback saved 💛")
-                            import time; time.sleep(3)
+                            import time; time.sleep(2)
                             msg.empty()
                             st.rerun()
 
@@ -520,6 +520,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
