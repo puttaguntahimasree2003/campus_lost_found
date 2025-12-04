@@ -312,7 +312,6 @@ with tab_manage:
                 msg.empty()
 
                 st.rerun()
-
 # ----------------------------------------------------
 # TAB 3: SEARCH + FEEDBACK (TEXT + IMAGE SIMILARITY)
 # ----------------------------------------------------
@@ -321,18 +320,23 @@ with tab_search:
 
     items_df = st.session_state.items_df
 
-    # SAFELY create counter for file_uploader reset
-    if "clear_image" not in st.session_state:
-        st.session_state.clear_image = 0
-
     if items_df.empty:
         st.info("No items to search. Add items first.")
     else:
+        # ---- handle reset from previous run (BEFORE widgets) ----
+        if st.session_state.reset_search:
+            st.session_state.search_query = ""
+            st.session_state.search_location = ""
+            st.session_state.show_images = False
+            # file uploader will reset because we change the key later
+            st.session_state.clear_image += 1
+            st.session_state.reset_search = False
 
         # ------------ SEARCH INPUTS ------------
-        description = st.text_input(
-                "Item description*", placeholder="Red water bottle with scratches..."
-            )
+        search_query = st.text_input(
+            "Describe what you're looking for",
+            key="search_query",
+        )
 
         search_location = st.text_input(
             "Location (optional)",
@@ -351,10 +355,10 @@ with tab_search:
         show_images = st.checkbox(
             "Show item images",
             value=False,
-            key="show_images"
+            key="show_images",
         )
 
-        # dynamic key so file uploader gets reset
+        # dynamic key so file_uploader can be cleared safely
         query_image_file = st.file_uploader(
             "Upload image to match (optional for image similarity)",
             type=["png", "jpg", "jpeg"],
@@ -367,7 +371,7 @@ with tab_search:
             try:
                 qimg = Image.open(query_image_file)
                 query_img_vec = preprocess_image(qimg)
-            except:
+            except Exception:
                 st.warning("Couldn't read uploaded image.")
 
         # If no search query
@@ -401,7 +405,7 @@ with tab_search:
                     X = vectorizer.fit_transform(corpus)
                     q_vec = vectorizer.transform([search_query])
                     text_sims = cosine_similarity(q_vec, X)[0]
-                except:
+                except Exception:
                     text_sims = np.zeros(len(df_search))
 
                 # ------------- IMAGE SIMILARITY -------------
@@ -481,18 +485,14 @@ with tab_search:
                             )
                             save_feedback()
 
-                            # ------------- RESET SEARCH FIELDS -------------
-                            st.session_state.search_query = ""
-                            st.session_state.search_location = ""
-                            st.session_state.show_images = False
-
-                            # reset file uploader safely
-                            st.session_state.clear_image += 1
+                            # 👇 tell next run to clear search widgets
+                            st.session_state.reset_search = True
 
                             st.success("Feedback saved 💛")
                             st.rerun()
 
                         st.markdown("---")
+
 
 # TAB 4: FEEDBACK TABLE ONLY
 
@@ -512,6 +512,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
