@@ -7,6 +7,11 @@ from PIL import Image
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+if "clear_image" not in st.session_state:
+    st.session_state.clear_image = 0
+    load_items()
+load_feedback()
+
 st.set_page_config(page_title="Campus Lost & Found", layout="wide")
 
 ITEMS_FILE = "items.csv"
@@ -522,6 +527,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
