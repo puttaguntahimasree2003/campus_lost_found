@@ -492,7 +492,11 @@ with tab_search:
                             # 👇 tell next run to clear search widgets
                             st.session_state.reset_search = True
 
-                            st.success("Feedback saved 💛")
+                            
+                            msg = st.empty()
+                            msg.success("Feedback saved 💛")
+                            import time; time.sleep(3)
+                            msg.empty()
                             st.rerun()
 
                         st.markdown("---")
@@ -516,6 +520,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
