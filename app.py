@@ -199,10 +199,14 @@ with tab_add:
             items_df = st.session_state.items_df
             save_items()
 
-            st.success(f"Item #{new_id} added and saved 🎉")
+            msg = st.empty()
+            msg.success(f"Item #{new_id} added and saved 🎉")
+            import time; time.sleep(20)
+            msg.empty()
 
 
-# ----------------------------------------------------
+
+# ---------------------------------------------------
 # TAB 2: VIEW / EDIT / DELETE
 # ----------------------------------------------------
 with tab_manage:
@@ -485,6 +489,7 @@ with tab_feedback:
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 
