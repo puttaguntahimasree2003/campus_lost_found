@@ -1,15 +1,21 @@
 # Project Overview
-This project is designed to help identify and match lost items on campus with items that have been found.
-Using classical ML techniques (TF-IDF + Cosine Similarity), the system compares text descriptions and
-returns the closest matches. The project is deployed online using Streamlit for easy access and testing.
+This project provides an intelligent system to match lost items with found items on a campus.
+The application uses classical ML techniques such as TF-IDF and Cosine Similarity to compare text descriptions, along with image similarity using grayscale vectors.
+The platform is deployed online using Streamlit, enabling users to:
+Add found items
+Edit or delete existing items
+Search for lost items using text and optional images
+Provide feedback for improving match quality
 
 # Live Demo (Streamlit Cloud)
 
 🔗 **App Link:** *<https://campuslostfound-awutsjqdq9ufnb2lfodaas.streamlit.app/>*  
 Use this link to test:
-- Adding a found item  
-- Searching a lost item  
-- Viewing match scores and sample results  
+- Add a found item
+- Search for lost items
+- Compare text & image similarity scores
+- Submit feedback
+- View all stored items
 
 # Repository Structure
 app.py # Streamlit source code
@@ -24,7 +30,7 @@ The dataset contains sample entries of found items.
 - **description** – Item description  
 - **location** – Where item was found  
 - **date** – Date found  
-- **contact** – Finder’s contact  
+- **contact** – Finder’s contact
 
 **Example Rows**
 csv
